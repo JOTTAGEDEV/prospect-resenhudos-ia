@@ -330,7 +330,6 @@ h3 {
 }
 .opportunity-strip {
   border: 1px solid var(--border);
-  border-left: 3px solid var(--primary);
   padding: 20px 24px;
   border-radius: 10px;
   margin-bottom: 28px;
