@@ -1,4 +1,4 @@
-import { openDatabase } from './db.js';
-const {sqlite}=openDatabase();
+import { openDatabase } from "./db.js";
+const { sqlite } = openDatabase();
 sqlite.close();
-console.log('Migrations aplicadas.');
+console.log("Migrations aplicadas.");

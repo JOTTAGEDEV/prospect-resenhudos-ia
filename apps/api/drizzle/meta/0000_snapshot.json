@@ -63,12 +63,8 @@
           "name": "pipeline_activities_workspace_id_workspaces_id_fk",
           "tableFrom": "pipeline_activities",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -76,14 +72,8 @@
           "name": "pipeline_activities_workspace_id_lead_id_business_leads_workspace_id_id_fk",
           "tableFrom": "pipeline_activities",
           "tableTo": "business_leads",
-          "columnsFrom": [
-            "workspace_id",
-            "lead_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
+          "columnsFrom": ["workspace_id", "lead_id"],
+          "columnsTo": ["workspace_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -151,12 +141,8 @@
           "name": "ai_analyses_workspace_id_workspaces_id_fk",
           "tableFrom": "ai_analyses",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -164,14 +150,8 @@
           "name": "ai_analyses_workspace_id_lead_id_business_leads_workspace_id_id_fk",
           "tableFrom": "ai_analyses",
           "tableTo": "business_leads",
-          "columnsFrom": [
-            "workspace_id",
-            "lead_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
+          "columnsFrom": ["workspace_id", "lead_id"],
+          "columnsTo": ["workspace_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -232,12 +212,8 @@
           "name": "website_audits_workspace_id_workspaces_id_fk",
           "tableFrom": "website_audits",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -245,14 +221,8 @@
           "name": "website_audits_workspace_id_lead_id_business_leads_workspace_id_id_fk",
           "tableFrom": "website_audits",
           "tableTo": "business_leads",
-          "columnsFrom": [
-            "workspace_id",
-            "lead_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
+          "columnsFrom": ["workspace_id", "lead_id"],
+          "columnsTo": ["workspace_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -370,10 +340,7 @@
       "indexes": {
         "jobs_poll": {
           "name": "jobs_poll",
-          "columns": [
-            "status",
-            "next_run_at"
-          ],
+          "columns": ["status", "next_run_at"],
           "isUnique": false
         }
       },
@@ -382,12 +349,8 @@
           "name": "background_jobs_workspace_id_workspaces_id_fk",
           "tableFrom": "background_jobs",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -574,27 +537,17 @@
       "indexes": {
         "lead_identity": {
           "name": "lead_identity",
-          "columns": [
-            "workspace_id",
-            "identity"
-          ],
+          "columns": ["workspace_id", "identity"],
           "isUnique": true
         },
         "lead_workspace_id": {
           "name": "lead_workspace_id",
-          "columns": [
-            "workspace_id",
-            "id"
-          ],
+          "columns": ["workspace_id", "id"],
           "isUnique": true
         },
         "lead_filter": {
           "name": "lead_filter",
-          "columns": [
-            "workspace_id",
-            "stage",
-            "created_at"
-          ],
+          "columns": ["workspace_id", "stage", "created_at"],
           "isUnique": false
         }
       },
@@ -603,12 +556,8 @@
           "name": "business_leads_workspace_id_workspaces_id_fk",
           "tableFrom": "business_leads",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -669,12 +618,8 @@
           "name": "audit_logs_workspace_id_workspaces_id_fk",
           "tableFrom": "audit_logs",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -733,10 +678,7 @@
       "indexes": {
         "member_unique": {
           "name": "member_unique",
-          "columns": [
-            "workspace_id",
-            "user_id"
-          ],
+          "columns": ["workspace_id", "user_id"],
           "isUnique": true
         }
       },
@@ -745,12 +687,8 @@
           "name": "workspace_members_workspace_id_workspaces_id_fk",
           "tableFrom": "workspace_members",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -758,12 +696,8 @@
           "name": "workspace_members_user_id_users_id_fk",
           "tableFrom": "workspace_members",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -846,12 +780,8 @@
           "name": "message_drafts_workspace_id_workspaces_id_fk",
           "tableFrom": "message_drafts",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -859,14 +789,8 @@
           "name": "message_drafts_workspace_id_lead_id_business_leads_workspace_id_id_fk",
           "tableFrom": "message_drafts",
           "tableTo": "business_leads",
-          "columnsFrom": [
-            "workspace_id",
-            "lead_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
+          "columnsFrom": ["workspace_id", "lead_id"],
+          "columnsTo": ["workspace_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -924,10 +848,7 @@
       "indexes": {
         "result_unique": {
           "name": "result_unique",
-          "columns": [
-            "search_id",
-            "lead_id"
-          ],
+          "columns": ["search_id", "lead_id"],
           "isUnique": true
         }
       },
@@ -936,12 +857,8 @@
           "name": "search_results_workspace_id_workspaces_id_fk",
           "tableFrom": "search_results",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -949,12 +866,8 @@
           "name": "search_results_search_id_searches_id_fk",
           "tableFrom": "search_results",
           "tableTo": "searches",
-          "columnsFrom": [
-            "search_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["search_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -962,14 +875,8 @@
           "name": "search_results_workspace_id_lead_id_business_leads_workspace_id_id_fk",
           "tableFrom": "search_results",
           "tableTo": "business_leads",
-          "columnsFrom": [
-            "workspace_id",
-            "lead_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
+          "columnsFrom": ["workspace_id", "lead_id"],
+          "columnsTo": ["workspace_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1030,12 +937,8 @@
           "name": "lead_scores_workspace_id_workspaces_id_fk",
           "tableFrom": "lead_scores",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1043,14 +946,8 @@
           "name": "lead_scores_workspace_id_lead_id_business_leads_workspace_id_id_fk",
           "tableFrom": "lead_scores",
           "tableTo": "business_leads",
-          "columnsFrom": [
-            "workspace_id",
-            "lead_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
+          "columnsFrom": ["workspace_id", "lead_id"],
+          "columnsTo": ["workspace_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1134,12 +1031,8 @@
           "name": "searches_workspace_id_workspaces_id_fk",
           "tableFrom": "searches",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1186,12 +1079,8 @@
           "name": "sessions_user_id_users_id_fk",
           "tableFrom": "sessions",
           "tableTo": "users",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["user_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1199,12 +1088,8 @@
           "name": "sessions_workspace_id_workspaces_id_fk",
           "tableFrom": "sessions",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1262,9 +1147,7 @@
       "indexes": {
         "integration_settings_workspace_id_unique": {
           "name": "integration_settings_workspace_id_unique",
-          "columns": [
-            "workspace_id"
-          ],
+          "columns": ["workspace_id"],
           "isUnique": true
         }
       },
@@ -1273,12 +1156,8 @@
           "name": "integration_settings_workspace_id_workspaces_id_fk",
           "tableFrom": "integration_settings",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1361,12 +1240,8 @@
           "name": "lead_sources_workspace_id_workspaces_id_fk",
           "tableFrom": "lead_sources",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1374,14 +1249,8 @@
           "name": "lead_sources_workspace_id_lead_id_business_leads_workspace_id_id_fk",
           "tableFrom": "lead_sources",
           "tableTo": "business_leads",
-          "columnsFrom": [
-            "workspace_id",
-            "lead_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
+          "columnsFrom": ["workspace_id", "lead_id"],
+          "columnsTo": ["workspace_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1439,10 +1308,7 @@
       "indexes": {
         "suppression_unique": {
           "name": "suppression_unique",
-          "columns": [
-            "workspace_id",
-            "contact"
-          ],
+          "columns": ["workspace_id", "contact"],
           "isUnique": true
         }
       },
@@ -1451,12 +1317,8 @@
           "name": "suppression_list_workspace_id_workspaces_id_fk",
           "tableFrom": "suppression_list",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1532,12 +1394,8 @@
           "name": "followup_tasks_workspace_id_workspaces_id_fk",
           "tableFrom": "followup_tasks",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         },
@@ -1545,14 +1403,8 @@
           "name": "followup_tasks_workspace_id_lead_id_business_leads_workspace_id_id_fk",
           "tableFrom": "followup_tasks",
           "tableTo": "business_leads",
-          "columnsFrom": [
-            "workspace_id",
-            "lead_id"
-          ],
-          "columnsTo": [
-            "workspace_id",
-            "id"
-          ],
+          "columnsFrom": ["workspace_id", "lead_id"],
+          "columnsTo": ["workspace_id", "id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1621,12 +1473,8 @@
           "name": "api_usage_workspace_id_workspaces_id_fk",
           "tableFrom": "api_usage",
           "tableTo": "workspaces",
-          "columnsFrom": [
-            "workspace_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
+          "columnsFrom": ["workspace_id"],
+          "columnsTo": ["id"],
           "onDelete": "cascade",
           "onUpdate": "no action"
         }
@@ -1677,9 +1525,7 @@
       "indexes": {
         "users_email_unique": {
           "name": "users_email_unique",
-          "columns": [
-            "email"
-          ],
+          "columns": ["email"],
           "isUnique": true
         }
       },
