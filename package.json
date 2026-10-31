@@ -1,0 +1,21 @@
+{
+  "name": "jotage-prospect-ai",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"npm run dev -w @jotage/api\" \"npm run dev -w @jotage/web\"",
+    "build": "npm run build -w @jotage/web && npm run build -w @jotage/api",
+    "start": "npm run start -w @jotage/api",
+    "db:migrate": "tsx apps/api/src/database/migrate.ts",
+    "db:seed": "tsx apps/api/src/database/seed.ts",
+    "admin:create": "tsx apps/api/src/database/admin.ts",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "verify": "npm run typecheck && npm run lint && npm test && npm run build"
+  }
+}

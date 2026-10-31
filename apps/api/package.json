@@ -1,0 +1,1 @@
+{"name":"@jotage/api","version":"0.1.0","private":true,"type":"module","scripts":{"dev":"tsx watch src/index.ts","build":"tsup src/index.ts --format esm --out-dir dist --external better-sqlite3","start":"node dist/index.js"}}
