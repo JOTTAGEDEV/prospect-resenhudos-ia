@@ -12,7 +12,7 @@ const directory = mkdtempSync(join(tmpdir(), "jotage-e2e-"));
 const { db, sqlite } = openDatabase(join(directory, "test.db"));
 const user = {
   ...stamp(),
-  email: "e2e@example.test",
+  email: "admin@jotage.local",
   passwordHash: await hashPassword("E2E-only-password-123!"),
 };
 const workspace = {

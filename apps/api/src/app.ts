@@ -5,6 +5,7 @@ import rateLimit from "@fastify/rate-limit";
 import staticPlugin from "@fastify/static";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { z } from "zod";
+import { GoogleGenAI } from "@google/genai";
 import { randomBytes } from "node:crypto";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
@@ -31,7 +32,7 @@ import {
   whatsappLink,
   normalizePhone,
 } from "./services/leads.js";
-import { getSettings, updateSettings } from "./services/settings.js";
+import { getSettings, updateSettings, getApiKey } from "./services/settings.js";
 import { Queue } from "./workers/queue.js";
 import { createHandler } from "./services/job-handler.js";
 import {
@@ -184,21 +185,33 @@ export async function buildApp(
     async (request, reply) => {
       const input = z
         .object({
-          email: z.email().max(254),
+          username: z.string().trim().min(1).max(254).optional(),
+          email: z.email().max(254).optional(),
           password: z.string().min(1).max(128),
         })
         .strict()
+        .refine(
+          (value) => !!(value.username || value.email),
+          "Informe o usuário",
+        )
         .parse(request.body);
+      const login = (input.username || input.email || "").toLowerCase();
       const user = db
         .select()
         .from(s.users)
-        .where(eq(s.users.email, input.email.toLowerCase()))
+        .where(
+          eq(
+            s.users.email,
+            login === "admin123" ? "admin@jotage.local" : login,
+          ),
+        )
         .get();
       const valid = await verifyPassword(
         input.password,
         user?.passwordHash || dummyHash,
       );
-      if (!valid || !user) throw new AppError(401, "Email ou senha inválidos");
+      if (!valid || !user)
+        throw new AppError(401, "Usuário ou senha inválidos");
       const member = db
         .select()
         .from(s.members)
@@ -852,6 +865,40 @@ export async function buildApp(
       audit: null,
     });
     return { ok: true };
+  });
+  app.post("/api/settings/models", async (request) => {
+    const input = z
+      .object({ apiKey: z.string().trim().max(512).optional() })
+      .strict()
+      .parse(request.body ?? {});
+    const apiKey = input.apiKey || getApiKey(db, request.auth.workspaceId);
+    if (!apiKey)
+      throw new AppError(
+        400,
+        "Cole sua chave da API para carregar os modelos.",
+      );
+    try {
+      const client = new GoogleGenAI({
+        apiKey,
+        httpOptions: { timeout: 15000 },
+      });
+      const page = await client.models.list({ config: { pageSize: 1000 } });
+      const models = page.page
+        .filter(
+          (model) =>
+            model.name && model.supportedActions?.includes("generateContent"),
+        )
+        .map((model) => ({
+          value: model.name!.replace(/^models\//, ""),
+          label: model.displayName || model.name!,
+        }));
+      return { models };
+    } catch {
+      throw new AppError(
+        502,
+        "Não foi possível carregar os modelos. Confira a chave e tente novamente, ou cole o identificador do modelo abaixo.",
+      );
+    }
   });
   app.get("/api/usage", (request) =>
     db

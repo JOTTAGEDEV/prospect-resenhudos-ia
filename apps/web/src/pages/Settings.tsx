@@ -46,6 +46,17 @@ export default function SettingsPage() {
   );
 }
 function SettingsForm({ initial }: { initial: Settings }) {
+  const [models, setModels] = useState<{ value: string; label: string }[]>([]);
+  const loadModels = useAction<{ models: { value: string; label: string }[] }>(
+    (result) => {
+      setModels(result.models);
+      toast.success(
+        result.models.length
+          ? "Modelos carregados. Escolha abaixo e salve."
+          : "Nenhum modelo de texto encontrado. Você pode colar o identificador.",
+      );
+    },
+  );
   const [data, setData] = useState(initial),
     [key, setKey] = useState(""),
     [theme, setTheme] = useState(
@@ -110,7 +121,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </section>
         <section className="panel">
           <div className="panel-head">
-            <h2>Gemini</h2>
+            <h2>Inteligência artificial · Gemini</h2>
             <span className="helper">
               {data.aiConfigured
                 ? "Chave configurada"
@@ -118,16 +129,53 @@ function SettingsForm({ initial }: { initial: Settings }) {
             </span>
           </div>
           <FieldGroup>
+            <p className="helper">
+              Cole sua chave, carregue os modelos e selecione o que deseja usar.
+              Tudo é configurado aqui, sem editar arquivos.
+            </p>
             <TextField
               label="Chave da API (deixe vazio para preservar)"
               value={key}
               onChange={setKey}
               type="password"
             />
-            <TextField
-              label="Modelo disponível na sua conta"
+            <Button
+              type="button"
+              variant="outline"
+              disabled={
+                loadModels.isPending || (!key.trim() && !data.aiConfigured)
+              }
+              onClick={() =>
+                loadModels.mutate({
+                  path: "/settings/models",
+                  body: key.trim() ? { apiKey: key.trim() } : {},
+                })
+              }
+            >
+              {loadModels.isPending
+                ? "Carregando modelos…"
+                : "Carregar modelos da minha conta"}
+            </Button>
+            <FormError error={loadModels.error} />
+            <SelectField
+              label="Selecionar modelo"
               value={data.model}
               onChange={(v) => update("model", v)}
+              options={[
+                { value: "", label: "Selecione um modelo" },
+                ...(data.model &&
+                !models.some((model) => model.value === data.model)
+                  ? [{ value: data.model, label: data.model }]
+                  : []),
+                ...models,
+              ]}
+            />
+            <TextField
+              label="Ou cole o identificador do modelo"
+              value={data.model}
+              onChange={(v) =>
+                update("model", v.trim().replace(/^models\//, ""))
+              }
               placeholder="Identificador do modelo no Google AI Studio"
             />
             <TextField
@@ -146,6 +194,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 camada gratuita no Google AI Studio antes de enviar evidências.
               </AlertDescription>
             </Alert>
+            <Button type="submit" disabled={save.isPending}>
+              {save.isPending ? "Salvando…" : "Salvar chave e modelo"}
+            </Button>
             <Button
               type="button"
               variant="outline"

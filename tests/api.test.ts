@@ -20,7 +20,7 @@ const headers = () => ({ cookie, "x-requested-with": "JotageProspect" });
 beforeAll(async () => {
   const user = {
     ...stamp(),
-    email: "test@example.com",
+    email: "admin@jotage.local",
     passwordHash: await hashPassword("test-password-long"),
   };
   database.db.insert(s.users).values(user).run();
@@ -84,7 +84,7 @@ describe("Fluxo integrado", () => {
       method: "POST",
       url: "/api/auth/login",
       headers: { "x-requested-with": "JotageProspect" },
-      payload: { email: "test@example.com", password: "test-password-long" },
+      payload: { username: "admin123", password: "test-password-long" },
     });
     expect(result.statusCode).toBe(200);
     expect(result.headers["set-cookie"]).toContain("HttpOnly");
@@ -98,7 +98,7 @@ describe("Fluxo integrado", () => {
           method: "POST",
           url: "/api/auth/login",
           headers: { "x-requested-with": "JotageProspect" },
-          payload: { email: "test@example.com", password: "errada" },
+          payload: { email: "admin@jotage.local", password: "errada" },
         })
       ).statusCode,
     ).toBe(401);

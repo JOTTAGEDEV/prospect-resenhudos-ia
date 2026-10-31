@@ -112,20 +112,23 @@ function Login() {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              login.mutate({ path: "/auth/login", body: { email, password } });
+              login.mutate({
+                path: "/auth/login",
+                body: { username: email, password },
+              });
             }}
           >
             <FieldGroup>
               <Field>
-                <FieldLabel htmlFor="email">Email</FieldLabel>
+                <FieldLabel htmlFor="email">Usuário</FieldLabel>
                 <Input
                   id="email"
-                  type="email"
+                  type="text"
                   autoComplete="username"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="voce@empresa.com.br"
+                  placeholder="admin123"
                 />
               </Field>
               <Field>
@@ -151,8 +154,7 @@ function Login() {
             </FieldGroup>
           </form>
           <p className="login-note">
-            Acesso administrativo local. Crie seu usuário pelo comando{" "}
-            <code>npm run admin:create</code>, conforme o README.
+            Entre com seu usuário e senha para acessar o workspace.
           </p>
         </div>
       </section>

@@ -9,7 +9,7 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     console.log("BROWSER ERROR:", error.message);
   });
   await page.goto("/login");
-  await page.getByLabel("Email", { exact: true }).fill("e2e@example.test");
+  await page.getByLabel("Usuário", { exact: true }).fill("admin123");
   await page
     .getByLabel("Senha", { exact: true })
     .fill("E2E-only-password-123!");
@@ -85,6 +85,28 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     page.getByLabel("Nome da empresa", { exact: true }),
   ).toBeVisible();
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.route("**/api/settings/models", (route) =>
+    route.fulfill({
+      json: { models: [{ value: "test-model", label: "Modelo de teste" }] },
+    }),
+  );
+  await page
+    .getByLabel("Chave da API (deixe vazio para preservar)", { exact: true })
+    .fill("test-key-only");
+  await page
+    .getByRole("button", { name: "Carregar modelos da minha conta" })
+    .click();
+  await page
+    .getByLabel("Selecionar modelo", { exact: true })
+    .selectOption("test-model");
+  await page.getByRole("button", { name: "Salvar chave e modelo" }).click();
+  await expect(
+    page.getByText("Configurações salvas", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByLabel("Selecionar modelo", { exact: true }),
+  ).toHaveValue("test-model");
   await page.getByRole("link", { name: "Dashboard", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Seu próximo cliente começa aqui." }),
