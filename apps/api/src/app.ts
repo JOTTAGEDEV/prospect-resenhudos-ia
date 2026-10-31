@@ -101,37 +101,33 @@ export async function buildApp(
   await app.register(rateLimit, {
     max: 300,
     timeWindow: "1 minute",
-    allowList: request => !request.url.startsWith('/api/'),
+    allowList: (request) => !request.url.startsWith("/api/"),
   });
   const dummyHash = await hashPassword(randomBytes(24).toString("hex"));
   app.decorateRequest("auth");
   app.setErrorHandler((error, _req, reply) => {
     if (error instanceof z.ZodError)
-      return reply
-        .code(400)
-        .send({
-          error: "Dados inválidos",
-          details: error.issues.map((i) => ({
-            field: i.path.join("."),
-            message: i.message,
-          })),
-        });
+      return reply.code(400).send({
+        error: "Dados inválidos",
+        details: error.issues.map((i) => ({
+          field: i.path.join("."),
+          message: i.message,
+        })),
+      });
     const status =
       error instanceof AppError
         ? error.statusCode
         : (error as { statusCode?: number }).statusCode || 500;
     if (status >= 500)
       app.log.error({ code: status }, "Falha ao processar solicitação");
-    return reply
-      .code(status)
-      .send({
-        error:
-          status === 500
-            ? "Erro interno. Consulte o log e tente novamente."
-            : error instanceof Error
-              ? error.message
-              : "Falha na solicitação",
-      });
+    return reply.code(status).send({
+      error:
+        status === 500
+          ? "Erro interno. Consulte o log e tente novamente."
+          : error instanceof Error
+            ? error.message
+            : "Falha na solicitação",
+    });
   });
   app.addHook("onRequest", async (request, reply) => {
     if (!request.url.startsWith("/api/")) return;
@@ -240,6 +236,51 @@ export async function buildApp(
     reply.clearCookie("session", { path: "/" });
     return { ok: true };
   });
+  app.post(
+    "/api/auth/password",
+    { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
+    async (request) => {
+      const input = z
+        .object({
+          currentPassword: z.string().min(1).max(128),
+          newPassword: z.string().min(12).max(128),
+        })
+        .strict()
+        .parse(request.body);
+      const user = db
+        .select()
+        .from(s.users)
+        .where(eq(s.users.id, request.auth.userId))
+        .get()!;
+      if (!(await verifyPassword(input.currentPassword, user.passwordHash)))
+        throw new AppError(401, "Senha atual incorreta");
+      const passwordHash = await hashPassword(input.newPassword);
+      db.transaction((tx) => {
+        tx.update(s.users)
+          .set({ passwordHash, updatedAt: new Date().toISOString() })
+          .where(eq(s.users.id, user.id))
+          .run();
+        const sessions = tx
+          .select()
+          .from(s.sessions)
+          .where(eq(s.sessions.userId, user.id))
+          .all();
+        const current = digest(request.cookies.session!);
+        for (const session of sessions)
+          if (session.id !== current)
+            tx.delete(s.sessions).where(eq(s.sessions.id, session.id)).run();
+        tx.insert(s.logs)
+          .values({
+            ...stamp(),
+            workspaceId: request.auth.workspaceId,
+            action: "password.changed",
+            targetId: user.id,
+          })
+          .run();
+      });
+      return { ok: true };
+    },
+  );
   app.get("/api/auth/me", (request) => ({
     ...request.auth,
     workspaces: db
@@ -374,8 +415,11 @@ export async function buildApp(
     getLead(db, ws, id);
     const raw = z.record(z.string(), z.unknown()).parse(request.body);
     const parsed = leadInput.partial().parse(raw);
-    const input = Object.fromEntries(Object.entries(parsed).filter(([key]) => Object.hasOwn(raw, key)));
-    if (Object.hasOwn(input, 'phone')) input.phone = normalizePhone(input.phone as string | null);
+    const input = Object.fromEntries(
+      Object.entries(parsed).filter(([key]) => Object.hasOwn(raw, key)),
+    );
+    if (Object.hasOwn(input, "phone"))
+      input.phone = normalizePhone(input.phone as string | null);
     return db
       .update(s.leads)
       .set({ ...input, updatedAt: new Date().toISOString() })
@@ -834,22 +878,63 @@ export async function buildApp(
         rows.filter((l) => l.stage === stage).length,
       ]),
     );
-    const selectedIds = new Set(rows.map(l => l.id));
-    const history = db.select().from(s.activities).where(eq(s.activities.workspaceId, ws)).all().filter(a => selectedIds.has(a.leadId));
-    const contactedIds = new Set(rows.filter(l => ['Contatado', 'Respondeu', 'Em negociação', 'Cliente fechado'].includes(l.stage)).map(l => l.id));
-    const respondedIds = new Set(rows.filter(l => ['Respondeu', 'Em negociação', 'Cliente fechado'].includes(l.stage)).map(l => l.id));
-    const responsesByDay: Record<string, number> = {}, conversionsByDay: Record<string, number> = {};
-    const seenResponses = new Set<string>(), seenConversions = new Set<string>();
-    for (const event of history.sort((a,b) => a.createdAt.localeCompare(b.createdAt))) {
-      const toStage = event.kind === 'stage' ? event.text.split(' → ')[1] : '';
-      if (event.kind === 'contact' || ['Contatado', 'Respondeu', 'Em negociação', 'Cliente fechado'].includes(toStage)) contactedIds.add(event.leadId);
-      if (['Respondeu', 'Em negociação', 'Cliente fechado'].includes(toStage)) {
+    const selectedIds = new Set(rows.map((l) => l.id));
+    const history = db
+      .select()
+      .from(s.activities)
+      .where(eq(s.activities.workspaceId, ws))
+      .all()
+      .filter((a) => selectedIds.has(a.leadId));
+    const contactedIds = new Set(
+      rows
+        .filter((l) =>
+          [
+            "Contatado",
+            "Respondeu",
+            "Em negociação",
+            "Cliente fechado",
+          ].includes(l.stage),
+        )
+        .map((l) => l.id),
+    );
+    const respondedIds = new Set(
+      rows
+        .filter((l) =>
+          ["Respondeu", "Em negociação", "Cliente fechado"].includes(l.stage),
+        )
+        .map((l) => l.id),
+    );
+    const responsesByDay: Record<string, number> = {},
+      conversionsByDay: Record<string, number> = {};
+    const seenResponses = new Set<string>(),
+      seenConversions = new Set<string>();
+    for (const event of history.sort((a, b) =>
+      a.createdAt.localeCompare(b.createdAt),
+    )) {
+      const toStage = event.kind === "stage" ? event.text.split(" → ")[1] : "";
+      if (
+        event.kind === "contact" ||
+        ["Contatado", "Respondeu", "Em negociação", "Cliente fechado"].includes(
+          toStage,
+        )
+      )
+        contactedIds.add(event.leadId);
+      if (["Respondeu", "Em negociação", "Cliente fechado"].includes(toStage)) {
         respondedIds.add(event.leadId);
-        if (!seenResponses.has(event.leadId)) {const day=event.createdAt.slice(0,10);responsesByDay[day]=(responsesByDay[day]||0)+1;seenResponses.add(event.leadId);}
+        if (!seenResponses.has(event.leadId)) {
+          const day = event.createdAt.slice(0, 10);
+          responsesByDay[day] = (responsesByDay[day] || 0) + 1;
+          seenResponses.add(event.leadId);
+        }
       }
-      if (toStage === 'Cliente fechado' && !seenConversions.has(event.leadId)) {const day=event.createdAt.slice(0,10);conversionsByDay[day]=(conversionsByDay[day]||0)+1;seenConversions.add(event.leadId);}
+      if (toStage === "Cliente fechado" && !seenConversions.has(event.leadId)) {
+        const day = event.createdAt.slice(0, 10);
+        conversionsByDay[day] = (conversionsByDay[day] || 0) + 1;
+        seenConversions.add(event.leadId);
+      }
     }
-    const contacted = contactedIds.size, responded = respondedIds.size;
+    const contacted = contactedIds.size,
+      responded = respondedIds.size;
     const byDay: Record<string, number> = {},
       byCategory: Record<string, number> = {};
     for (const l of rows) {
@@ -863,8 +948,12 @@ export async function buildApp(
       highPriority: rows.filter((l) => (l.score ?? 0) >= 80).length,
       contacted,
       responded,
-      responsesByDay: Object.entries(responsesByDay).sort().map(([name,value])=>({name,value})),
-      conversionsByDay: Object.entries(conversionsByDay).sort().map(([name,value])=>({name,value})),
+      responsesByDay: Object.entries(responsesByDay)
+        .sort()
+        .map(([name, value]) => ({ name, value })),
+      conversionsByDay: Object.entries(conversionsByDay)
+        .sort()
+        .map(([name, value]) => ({ name, value })),
       responseRate: contacted ? (responded / contacted) * 100 : 0,
       conversionRate: rows.length
         ? (counts["Cliente fechado"] / rows.length) * 100

@@ -11,7 +11,7 @@
   --color-popover: var(--card);
   --color-popover-foreground: var(--foreground);
   --color-primary: var(--primary);
-  --color-primary-foreground: #07251c;
+  --color-primary-foreground: var(--on-primary);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--foreground);
   --color-muted: var(--secondary);
@@ -35,6 +35,7 @@
   --secondary: #182235;
   --muted-foreground: #a6afbd;
   --primary: #32d6a0;
+  --on-primary: #07251c;
   --border: #263044;
 }
 :root[data-theme="light"] {
@@ -45,6 +46,7 @@
   --secondary: #e8eef3;
   --muted-foreground: #526176;
   --primary: #087b58;
+  --on-primary: #ffffff;
   --border: #d5dde6;
 }
 * {
@@ -588,6 +590,21 @@ textarea {
 }
 button[data-slot="button"] {
   min-height: 44px;
+}
+[data-slot="button"][data-variant="default"] {
+  color: var(--on-primary);
+}
+[data-slot="button"][data-variant="destructive"] {
+  color: #401111;
+}
+[data-slot="button"][data-size="icon"] {
+  min-width:44px;
+}
+[data-slot="dialog-close"] {
+  min-width:32px;
+  min-height:32px;
+  display:grid;
+  place-items:center;
 }
 textarea {
   min-height: 120px;

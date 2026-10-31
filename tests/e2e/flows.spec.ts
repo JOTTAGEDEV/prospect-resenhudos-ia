@@ -1,9 +1,13 @@
 import { test, expect } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", async ({
   page,
 }) => {
   const errors: string[] = [];
-  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("pageerror", (error) => {
+    errors.push(error.message);
+    console.log("BROWSER ERROR:", error.message);
+  });
   await page.goto("/login");
   await page.getByLabel("Email", { exact: true }).fill("e2e@example.test");
   await page
@@ -22,7 +26,9 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     .first()
     .click();
   await page.getByRole("button", { name: "Buscar empresas" }).click();
-  await page.getByRole("link", { name: "[TESTE] Oficina Aurora" }).click();
+  await page
+    .getByRole("link", { name: "Abrir [TESTE] Oficina Aurora", exact: true })
+    .click();
   await expect(
     page.getByRole("heading", { name: "[TESTE] Oficina Aurora", exact: true }),
   ).toBeVisible();
@@ -69,7 +75,10 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     .getByRole("button", { name: "Salvar empresa", exact: true })
     .click();
   await expect(
-    page.getByRole("link", { name: "[TESTE] Empresa manual" }),
+    page.getByRole("link", {
+      name: "Abrir [TESTE] Empresa manual",
+      exact: true,
+    }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Configurações", exact: true }).click();
   await expect(
@@ -90,4 +99,31 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     fullPage: true,
   });
   expect(errors).toEqual([]);
+  for (const theme of ["dark", "light"]) {
+    await page.evaluate((value) => {
+      document.documentElement.dataset.theme = value;
+    }, theme);
+    const audit = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze();
+    expect(
+      audit.violations.map((v) => ({
+        id: v.id,
+        targets: v.nodes.map((n) => n.target),
+      })),
+    ).toEqual([]);
+  }
+  for (const viewport of [
+    { width: 375, height: 812 },
+    { width: 844, height: 390 },
+    { width: 768, height: 1024 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= window.innerWidth,
+      ),
+    ).toBe(true);
+  }
 });

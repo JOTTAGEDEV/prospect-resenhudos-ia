@@ -124,9 +124,34 @@ export function saveLead(
               domain(data.website) === domain(l.website))),
       );
   if (existing) {
-    const known = db.select().from(s.sources).where(and(eq(s.sources.workspaceId, workspaceId), eq(s.sources.leadId, existing.id), eq(s.sources.source, data.source))).all();
-    if (!known.some(source => source.sourceId === (data.sourceId ?? null) && source.url === (data.sourceUrl ?? null))) {
-      db.insert(s.sources).values({...stamp(), workspaceId, leadId:existing.id, source:data.source, sourceId:data.sourceId, url:data.sourceUrl}).run();
+    const known = db
+      .select()
+      .from(s.sources)
+      .where(
+        and(
+          eq(s.sources.workspaceId, workspaceId),
+          eq(s.sources.leadId, existing.id),
+          eq(s.sources.source, data.source),
+        ),
+      )
+      .all();
+    if (
+      !known.some(
+        (source) =>
+          source.sourceId === (data.sourceId ?? null) &&
+          source.url === (data.sourceUrl ?? null),
+      )
+    ) {
+      db.insert(s.sources)
+        .values({
+          ...stamp(),
+          workspaceId,
+          leadId: existing.id,
+          source: data.source,
+          sourceId: data.sourceId,
+          url: data.sourceUrl,
+        })
+        .run();
     }
     return { lead: existing, duplicate: true };
   }

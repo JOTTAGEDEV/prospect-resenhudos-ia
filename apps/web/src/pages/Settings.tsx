@@ -13,6 +13,7 @@ import {
 } from "../components/common";
 import { Button } from "../components/ui/button";
 import { FieldGroup } from "../components/ui/field";
+import { FormError } from "../components/FormError";
 import { Alert, AlertTitle, AlertDescription } from "../components/ui/alert";
 import {
   Dialog,
@@ -72,6 +73,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           });
         }}
       >
+        <FormError error={save.error} />
         <section className="panel">
           <div className="panel-head">
             <h2>Identidade comercial</h2>
@@ -214,6 +216,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           {save.isPending ? "Salvando…" : "Salvar configurações"}
         </Button>
       </form>
+      <PasswordForm />
       <section className="panel">
         <h2 className="mb-5">Sistema e dados</h2>
         <SelectField
@@ -273,5 +276,48 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </p>
       </section>
     </div>
+  );
+}
+function PasswordForm() {
+  const [currentPassword, setCurrent] = useState(""),
+    [newPassword, setNew] = useState("");
+  const action = useAction(() => {
+    setCurrent("");
+    setNew("");
+    toast.success("Senha alterada; outras sessões foram encerradas.");
+  });
+  return (
+    <form
+      className="panel"
+      onSubmit={(e) => {
+        e.preventDefault();
+        action.mutate({
+          path: "/auth/password",
+          body: { currentPassword, newPassword },
+        });
+      }}
+    >
+      <h2 className="mb-5">Senha de acesso</h2>
+      <FieldGroup>
+        <FormError error={action.error} />
+        <TextField
+          label="Senha atual"
+          type="password"
+          value={currentPassword}
+          onChange={setCurrent}
+          required
+        />
+        <TextField
+          label="Nova senha (mínimo 12 caracteres)"
+          type="password"
+          value={newPassword}
+          onChange={setNew}
+          required
+        />
+        <Button variant="outline" disabled={action.isPending}>
+          Alterar senha
+        </Button>
+      </FieldGroup>
+    </form>
   );
 }

@@ -136,6 +136,37 @@ describe("Fluxo integrado", () => {
     expect(second.json().duplicate).toBe(true);
     expect(second.json().lead.id).toBe(leadId);
   });
+  it("edição parcial preserva campos não enviados e rejeita fonte executável", async () => {
+    await app.inject({
+      method: "PATCH",
+      url: `/api/leads/${leadId}`,
+      headers: headers(),
+      payload: {
+        category: "Categoria específica",
+        notes: "Nota preservada",
+        tags: ["tag"],
+      },
+    });
+    const edited = await app.inject({
+      method: "PATCH",
+      url: `/api/leads/${leadId}`,
+      headers: headers(),
+      payload: { address: "Endereço informado" },
+    });
+    expect(edited.json().category).toBe("Categoria específica");
+    expect(edited.json().notes).toBe("Nota preservada");
+    expect(edited.json().tags).toEqual(["tag"]);
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/leads",
+          headers: headers(),
+          payload: { name: "Teste", sourceUrl: "javascript:alert(1)" },
+        })
+      ).statusCode,
+    ).toBe(400);
+  });
   it("impede acesso e mudanças entre workspaces", async () => {
     for (const method of ["GET", "PATCH", "DELETE"] as const) {
       const result = await app.inject({
@@ -327,5 +358,33 @@ describe("Fluxo integrado", () => {
       database.db.select().from(s.jobs).where(eq(s.jobs.id, job.id)).get()
         ?.status,
     ).toBe("cancelled");
+  });
+  it("altera senha somente após validar a atual", async () => {
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/auth/password",
+          headers: headers(),
+          payload: {
+            currentPassword: "errada",
+            newPassword: "nova-senha-segura-teste",
+          },
+        })
+      ).statusCode,
+    ).toBe(401);
+    expect(
+      (
+        await app.inject({
+          method: "POST",
+          url: "/api/auth/password",
+          headers: headers(),
+          payload: {
+            currentPassword: "test-password-long",
+            newPassword: "nova-senha-segura-teste",
+          },
+        })
+      ).statusCode,
+    ).toBe(200);
   });
 });

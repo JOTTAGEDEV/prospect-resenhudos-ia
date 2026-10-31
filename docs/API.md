@@ -1,0 +1,68 @@
+# API REST
+
+Base local: `http://127.0.0.1:3001/api`. JSON em UTF-8. Sessão em cookie HttpOnly. Toda mutação exige `X-Requested-With: JotageProspect`; a origem deve coincidir com APP_ORIGIN quando presente. Nenhum CORS aberto é configurado.
+
+Erros: `{ "error": "mensagem", "details": [{"field":"name","message":"..."}] }`. `details` está presente em erros de validação. Códigos: 400 inválido, 401 não autenticado, 403 origem/workspace proibido, 404 ausente, 409 conflito/configuração, 429 limite, 502 fonte externa.
+
+| Método e caminho | Contrato resumido |
+|---|---|
+| GET /health | Público: status e versão |
+| POST /auth/login | `{email,password}`; cookie de sessão de 8 horas |
+| POST /auth/logout | Revoga sessão atual |
+| POST /auth/password | `{currentPassword,newPassword}`; valida senha atual e revoga outras sessões |
+| GET /auth/me | Usuário e workspaces autorizados |
+| POST /auth/workspace | `{workspaceId}`; exige associação |
+| GET /leads | `q,category,stage,city,source,from,to,minScore,sort,page,pageSize`; retorna `{items,total,page,pageSize}` |
+| POST /leads | `{name,category?,city?,state?,address?,website?,phone?,email?,latitude?,longitude?,notes?,tags?,source?,sourceId?,sourceUrl?}`; retorna `{lead,duplicate}` |
+| GET /leads/:id | Lead, fontes, auditorias, análises e atividades |
+| PATCH /leads/:id | Campos parciais do cadastro |
+| DELETE /leads/:id | Exclui lead e dependências; preserva supressão |
+| PATCH /leads/:id/stage | `{stage}`; persiste histórico |
+| POST /leads/:id/audit | Enfileira auditoria; retorna job |
+| POST /leads/:id/analyze | Enfileira Gemini; retorna job |
+| POST /leads/:id/score | Recalcula fatores e histórico |
+| GET /pipeline | Mesmos filtros dos leads; etapas e cards |
+| POST /searches | `{city,state,latitude,longitude,radiusKm,category,limit}`; todos têm defaults; cache 24h |
+| GET /searches | Até 100 pesquisas recentes |
+| GET /searches/:id | Pesquisa, resultados e jobs |
+| POST /searches/:id/cancel | Cancela job e pesquisa |
+| GET /jobs | Até 100 jobs recentes |
+| POST /jobs/:id/cancel | Cancela tarefa pendente, pausada ou em execução |
+| POST /jobs/:id/resume | Retoma pausada/falha explicitamente |
+| GET /leads/:id/messages | Versões de mensagens |
+| POST /leads/:id/messages | `{style,method,maxLength}`; method `template` ou `gemini` |
+| PATCH /messages/:id | `{text,approved}`; cria nova versão imutável |
+| POST /messages/:id/whatsapp | `{url}` após aprovação e validação de supressão |
+| GET /activities | Até 200 atividades recentes |
+| POST /activities | `{leadId,text,kind}`; kind `note` ou `contact` |
+| GET /tasks | Até 500 acompanhamentos |
+| POST /tasks | `{leadId,title,dueAt}`; dueAt ISO UTC |
+| PATCH /tasks/:id | `{done}` |
+| GET /settings | Configuração pública, nunca chave |
+| PATCH /settings | Configuração completa conforme settingsInput; `apiKey` opcional |
+| POST /settings/test-ai | Consome chamada para verificar configuração salva |
+| GET /usage | Até 100 chamadas recentes e tokens informados |
+| GET /dashboard | Mesmos filtros dos leads; agregações persistentes |
+| GET /export/leads | Download CSV, aceita filtros dos leads |
+| POST /import/leads | `{csv}`; até 500 linhas; importação atômica |
+| GET /backup | JSON do workspace sem credenciais |
+| GET /suppression | Contatos bloqueados do workspace |
+| POST /retention | `{before: ISO UTC}`; limpa atividades anteriores e registra log |
+| DELETE /demo | Exige workspace demo; remove leads fictícios |
+
+As etapas e segmentos aceitos estão em `packages/shared/src/index.ts`. Ordenação: `createdAt`, `name`, `score`. Paginação de leads: 30 por padrão, máximo 100.
+
+Exemplo PowerShell (substitua email e senha; não salve credenciais em scripts versionados):
+
+```powershell
+$headers = @{ 'X-Requested-With' = 'JotageProspect' }
+$login = @{ email = $env:ADMIN_EMAIL; password = $env:ADMIN_PASSWORD } | ConvertTo-Json
+Invoke-RestMethod http://127.0.0.1:3001/api/auth/login -Method Post -Headers $headers -ContentType application/json -Body $login -SessionVariable prospectSession
+Invoke-RestMethod http://127.0.0.1:3001/api/leads -WebSession $prospectSession
+$lead = @{ name = 'Empresa informada manualmente'; category = 'Serviços' } | ConvertTo-Json
+Invoke-RestMethod http://127.0.0.1:3001/api/leads -Method Post -Headers $headers -ContentType application/json -Body $lead -WebSession $prospectSession
+```
+
+Auditoria: estados `not_informed`, `inaccessible`, `partial`, `completed`, `unavailable`. Pontuação nula significa evidência insuficiente. Não confundir ausência de um elemento no HTML com diagnóstico visual ou de performance.
+
+Jobs: `pending`, `running`, `paused`, `completed`, `failed`, `cancelled`. Concorrência 1, até 3 tentativas automáticas, backoff exponencial; quota 429 pausa e exige retomada manual. Um cancelamento não desfaz dados já confirmados anteriormente.

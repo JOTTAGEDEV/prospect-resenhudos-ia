@@ -8,6 +8,7 @@ export class ApiError extends Error {
   constructor(
     public status: number,
     message: string,
+    public details?: { field: string; message: string }[],
   ) {
     super(message);
   }
@@ -30,6 +31,7 @@ export async function api<T>(
     throw new ApiError(
       response.status,
       body.error || "Não foi possível concluir a solicitação",
+      body.details,
     );
   return body as T;
 }

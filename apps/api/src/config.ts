@@ -20,5 +20,6 @@ export const config = {
   database:
     process.env.DATABASE_URL?.replace(/^file:/, "") || "./data/prospect.db",
   overpass:
-    process.env.OVERPASS_ENDPOINT || "https://overpass-api.de/api/interpreter",
+    process.env.OVERPASS_ENDPOINT ||
+    "https://overpass.private.coffee/api/interpreter",
 };

@@ -45,7 +45,12 @@ export const leadInput = z
     longitude: z.number().min(-180).max(180).nullable().optional(),
     notes: z.string().max(5000).default(""),
     tags: z.array(z.string().trim().min(1).max(40)).max(12).default([]),
-    sourceUrl: z.url().max(2048).nullable().optional(),
+    sourceUrl: z
+      .url()
+      .max(2048)
+      .refine((v) => /^https?:\/\//i.test(v), "Use HTTP ou HTTPS")
+      .nullable()
+      .optional(),
     source: z.string().max(50).default("manual"),
     sourceId: optionalText,
   })

@@ -86,7 +86,10 @@ export class OverpassProvider implements BusinessSearchProvider {
     const response = await this.request(config.overpass, {
       method: "POST",
       body: new URLSearchParams({ data: query }),
-      headers: { "User-Agent": "JotageProspectAI/0.1 (manual local research)" },
+      headers: {
+        "User-Agent":
+          "JotageProspectAI/0.1 (+https://github.com/JOTTAGEDEV/prospect-resenhudos-ia)",
+      },
       signal: AbortSignal.any([
         AbortSignal.timeout(30000),
         ...(signal ? [signal] : []),

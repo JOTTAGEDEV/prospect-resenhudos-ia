@@ -2,7 +2,7 @@ import { load } from "cheerio";
 import robotsParser from "robots-parser";
 import type { Audit } from "@jotage/shared";
 import { safeGet, type HttpResult } from "../security/http.js";
-import { AppError } from './leads.js';
+import { AppError } from "./leads.js";
 
 export type WebsiteAuditService = {
   audit(url: string | null, signal?: AbortSignal): Promise<Audit>;
@@ -104,12 +104,21 @@ export class WebsiteAuditor implements WebsiteAuditService {
           status: "unavailable",
           limitations: ["Não foi possível verificar a política robots.txt."],
         };
-      const page = await this.get(url, signal, 0, async target => {
-        const targetRobotsUrl = new URL('/robots.txt', target).href;
+      const page = await this.get(url, signal, 0, async (target) => {
+        const targetRobotsUrl = new URL("/robots.txt", target).href;
         const policy = await this.get(targetRobotsUrl, signal);
-        if (![200, 404, 410].includes(policy.status) ||
-            (policy.status === 200 && robotsParser(targetRobotsUrl, policy.text).isAllowed(target, 'JotageProspectAI') === false)) {
-          throw new AppError(403, 'A política robots.txt do destino não permite continuar a auditoria.');
+        if (
+          ![200, 404, 410].includes(policy.status) ||
+          (policy.status === 200 &&
+            robotsParser(targetRobotsUrl, policy.text).isAllowed(
+              target,
+              "JotageProspectAI",
+            ) === false)
+        ) {
+          throw new AppError(
+            403,
+            "A política robots.txt do destino não permite continuar a auditoria.",
+          );
         }
       });
       // Re-check robots at the final origin after redirects.
@@ -149,7 +158,10 @@ export class WebsiteAuditor implements WebsiteAuditService {
       if (signal?.aborted) throw error;
       return {
         ...base,
-        status: error instanceof AppError && error.statusCode === 403 ? 'unavailable' : "inaccessible",
+        status:
+          error instanceof AppError && error.statusCode === 403
+            ? "unavailable"
+            : "inaccessible",
         limitations: [
           error instanceof Error
             ? error.message

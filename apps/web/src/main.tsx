@@ -35,6 +35,7 @@ import { Button } from "./components/ui/button";
 import { Input } from "./components/ui/input";
 import { Field, FieldLabel, FieldGroup } from "./components/ui/field";
 import "./styles.css";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 const Dashboard = lazy(() => import("./pages/Dashboard"));
 const Leads = lazy(() => import("./pages/Leads"));
 const Discovery = lazy(() => import("./pages/Discovery"));
@@ -317,9 +318,11 @@ function Layout() {
           </div>
         </header>
         <main className="main" id="main">
-          <Suspense fallback={<Loading />}>
-            <Outlet />
-          </Suspense>
+          <ErrorBoundary>
+            <Suspense fallback={<Loading />}>
+              <Outlet />
+            </Suspense>
+          </ErrorBoundary>
           <footer className="footer-note">
             <span>Jotage Prospect AI · relações construídas com contexto.</span>
             <span>Ambiente local · v0.1</span>
@@ -355,7 +358,8 @@ function App() {
     </QueryClientProvider>
   );
 }
-document.documentElement.dataset.theme = localStorage.getItem('jotage-theme-v1') || 'dark';
+document.documentElement.dataset.theme =
+  localStorage.getItem("jotage-theme-v1") || "dark";
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />

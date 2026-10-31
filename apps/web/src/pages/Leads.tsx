@@ -7,6 +7,8 @@ import { segments, stages, type Lead } from "@jotage/shared";
 import { api, useAction } from "../lib/api";
 import { PageHead, Loading, Failure } from "../components/common";
 import { LeadTable } from "../components/LeadTable";
+import { FormError } from "../components/FormError";
+import { ApiError } from "../lib/api";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
@@ -103,6 +105,7 @@ export default function Leads({ analysis = false }: { analysis?: boolean }) {
                 })}
               >
                 <FieldGroup>
+                  <FormError error={save.error} />
                   <Field>
                     <FieldLabel htmlFor="lead-name">Nome da empresa</FieldLabel>
                     <Input
@@ -112,7 +115,21 @@ export default function Leads({ analysis = false }: { analysis?: boolean }) {
                         minLength: 2,
                       })}
                       required
+                      minLength={2}
+                      aria-invalid={
+                        !!form.formState.errors.name ||
+                        !!(
+                          save.error instanceof ApiError &&
+                          save.error.details?.some((d) => d.field === "name")
+                        )
+                      }
+                      aria-describedby="lead-name-error"
                     />
+                    {form.formState.errors.name && (
+                      <p id="lead-name-error" className="error-text">
+                        Informe pelo menos dois caracteres.
+                      </p>
+                    )}
                   </Field>
                   <div className="form-grid">
                     {(
@@ -150,16 +167,28 @@ export default function Leads({ analysis = false }: { analysis?: boolean }) {
                                 : "text"
                           }
                           {...form.register(key)}
+                          aria-invalid={
+                            save.error instanceof ApiError &&
+                            !!save.error.details?.some((d) => d.field === key)
+                          }
+                          aria-describedby={`lead-${key}-error`}
                           placeholder={key === "website" ? "https://" : ""}
                         />
+                        {save.error instanceof ApiError &&
+                          save.error.details
+                            ?.filter((d) => d.field === key)
+                            .map((d, i) => (
+                              <p
+                                key={i}
+                                id={`lead-${key}-error`}
+                                className="error-text"
+                              >
+                                {d.message}
+                              </p>
+                            ))}
                       </Field>
                     ))}
                   </div>
-                  {save.error && (
-                    <p role="alert" className="error-text">
-                      {save.error.message}
-                    </p>
-                  )}
                   <Button type="submit" disabled={save.isPending}>
                     {save.isPending ? "Salvando…" : "Salvar empresa"}
                   </Button>

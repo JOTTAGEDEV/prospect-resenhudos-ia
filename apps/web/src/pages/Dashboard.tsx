@@ -40,8 +40,8 @@ type DashboardData = {
   byDay: { name: string; value: number }[];
   byCategory: { name: string; value: number }[];
   scoreDistribution: { name: string; value: number }[];
-  responsesByDay: {name:string;value:number}[];
-  conversionsByDay: {name:string;value:number}[];
+  responsesByDay: { name: string; value: number }[];
+  conversionsByDay: { name: string; value: number }[];
 };
 export default function Dashboard() {
   const [category, setCategory] = useState(""),
@@ -347,7 +347,46 @@ export default function Dashboard() {
           </section>
         </div>
       )}
-      {d.total > 0 && <div className="grid-2 mt-6">{[{title:'Respostas ao longo do tempo',data:d.responsesByDay},{title:'Conversões por período',data:d.conversionsByDay}].map(series=><section className="panel" key={series.title}><h2>{series.title}</h2><p className="helper">Primeira passagem registrada por empresa</p>{series.data.length?<div className="chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={series.data}><XAxis dataKey="name" tick={{fill:'var(--muted-foreground)',fontSize:10}}/><YAxis allowDecimals={false}/><Tooltip contentStyle={{background:'var(--card)',border:'1px solid var(--border)'}}/><Bar name="Empresas" dataKey="value" fill="var(--primary)" radius={[4,4,0,0]}/></BarChart></ResponsiveContainer></div>:<p className="helper mt-5">Ainda não há eventos registrados.</p>}</section>)}</div>}
+      {d.total > 0 && (
+        <div className="grid-2 mt-6">
+          {[
+            { title: "Respostas ao longo do tempo", data: d.responsesByDay },
+            { title: "Conversões por período", data: d.conversionsByDay },
+          ].map((series) => (
+            <section className="panel" key={series.title}>
+              <h2>{series.title}</h2>
+              <p className="helper">Primeira passagem registrada por empresa</p>
+              {series.data.length ? (
+                <div className="chart">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={series.data}>
+                      <XAxis
+                        dataKey="name"
+                        tick={{ fill: "var(--muted-foreground)", fontSize: 10 }}
+                      />
+                      <YAxis allowDecimals={false} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "var(--card)",
+                          border: "1px solid var(--border)",
+                        }}
+                      />
+                      <Bar
+                        name="Empresas"
+                        dataKey="value"
+                        fill="var(--primary)"
+                        radius={[4, 4, 0, 0]}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <p className="helper mt-5">Ainda não há eventos registrados.</p>
+              )}
+            </section>
+          ))}
+        </div>
+      )}
     </>
   );
 }
