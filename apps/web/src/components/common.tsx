@@ -109,6 +109,7 @@ export function SelectField({
       <select
         className="native-select"
         id={id}
+        name={label}
         value={value}
         onChange={(e) => onChange(e.target.value)}
         disabled={disabled}
@@ -144,6 +145,8 @@ export function TextField({
       <Input
         id={id}
         type={type}
+        name={label}
+        autoComplete="off"
         value={value}
         required={required}
         placeholder={placeholder}

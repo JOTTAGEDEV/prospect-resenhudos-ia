@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, MapPin, Info } from "lucide-react";
-import { segments, type Lead } from "@jotage/shared";
+import { segments, type Lead, type Settings } from "@jotage/shared";
 import { api, useAction, formatDate } from "../lib/api";
 import {
   PageHead,
@@ -33,6 +33,7 @@ export default function Discovery() {
     [category, setCategory] = useState<string>("Oficinas mecânicas"),
     [selected, setSelected] = useState("");
   const action = useAction<SearchRecord>((value) => setSelected(value.id));
+  const settings = useQuery({queryKey:['settings'],queryFn:()=>api<Settings>('/settings')});
   const searches = useQuery({
     queryKey: ["searches"],
     queryFn: () => api<SearchRecord[]>("/searches"),
@@ -62,6 +63,7 @@ export default function Discovery() {
             </div>
             <MapPin size={20} className="muted" />
           </div>
+          <Button type="button" variant="outline" className="mb-5" disabled={!settings.data} onClick={()=>{if(settings.data){setCity(settings.data.city);setLatitude(String(settings.data.latitude));setLongitude(String(settings.data.longitude));setRadius(String(settings.data.radiusKm));}}}>Usar região salva nas configurações</Button>
           <form
             onSubmit={(e) => {
               e.preventDefault();

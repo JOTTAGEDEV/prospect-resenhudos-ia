@@ -49,6 +49,7 @@ export async function safeGet(
   value: string,
   signal?: AbortSignal,
   redirects = 0,
+  beforeRedirect?: (url: string) => Promise<void>,
 ): Promise<HttpResult> {
   if (redirects > 3)
     throw new AppError(400, "Limite de redirecionamentos atingido");
@@ -60,6 +61,7 @@ export async function safeGet(
         url,
         {
           method: "GET",
+          family: address.family,
           signal,
           headers: {
             "User-Agent": "JotageProspectAI/0.1 (limited website audit)",
@@ -98,7 +100,10 @@ export async function safeGet(
       req.end();
     },
   );
-  if (result.status >= 300 && result.status < 400 && result.location)
-    return safeGet(new URL(result.location, url).href, signal, redirects + 1);
+  if (result.status >= 300 && result.status < 400 && result.location) {
+    const target = new URL(result.location, url).href;
+    await beforeRedirect?.(target);
+    return safeGet(target, signal, redirects + 1, beforeRedirect);
+  }
   return result;
 }

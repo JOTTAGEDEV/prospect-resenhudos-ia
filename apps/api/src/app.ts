@@ -29,6 +29,7 @@ import {
   contacts,
   assertContactAllowed,
   whatsappLink,
+  normalizePhone,
 } from "./services/leads.js";
 import { getSettings, updateSettings } from "./services/settings.js";
 import { Queue } from "./workers/queue.js";
@@ -97,7 +98,11 @@ export async function buildApp(
       },
     },
   });
-  await app.register(rateLimit, { max: 120, timeWindow: "1 minute" });
+  await app.register(rateLimit, {
+    max: 300,
+    timeWindow: "1 minute",
+    allowList: request => !request.url.startsWith('/api/'),
+  });
   const dummyHash = await hashPassword(randomBytes(24).toString("hex"));
   app.decorateRequest("auth");
   app.setErrorHandler((error, _req, reply) => {
@@ -367,7 +372,10 @@ export async function buildApp(
     const ws = request.auth.workspaceId,
       id = idOf(request);
     getLead(db, ws, id);
-    const input = leadInput.partial().parse(request.body);
+    const raw = z.record(z.string(), z.unknown()).parse(request.body);
+    const parsed = leadInput.partial().parse(raw);
+    const input = Object.fromEntries(Object.entries(parsed).filter(([key]) => Object.hasOwn(raw, key)));
+    if (Object.hasOwn(input, 'phone')) input.phone = normalizePhone(input.phone as string | null);
     return db
       .update(s.leads)
       .set({ ...input, updatedAt: new Date().toISOString() })
@@ -826,14 +834,22 @@ export async function buildApp(
         rows.filter((l) => l.stage === stage).length,
       ]),
     );
-    const contacted = rows.filter((l) =>
-      ["Contatado", "Respondeu", "Em negociação", "Cliente fechado"].includes(
-        l.stage,
-      ),
-    ).length;
-    const responded = rows.filter((l) =>
-      ["Respondeu", "Em negociação", "Cliente fechado"].includes(l.stage),
-    ).length;
+    const selectedIds = new Set(rows.map(l => l.id));
+    const history = db.select().from(s.activities).where(eq(s.activities.workspaceId, ws)).all().filter(a => selectedIds.has(a.leadId));
+    const contactedIds = new Set(rows.filter(l => ['Contatado', 'Respondeu', 'Em negociação', 'Cliente fechado'].includes(l.stage)).map(l => l.id));
+    const respondedIds = new Set(rows.filter(l => ['Respondeu', 'Em negociação', 'Cliente fechado'].includes(l.stage)).map(l => l.id));
+    const responsesByDay: Record<string, number> = {}, conversionsByDay: Record<string, number> = {};
+    const seenResponses = new Set<string>(), seenConversions = new Set<string>();
+    for (const event of history.sort((a,b) => a.createdAt.localeCompare(b.createdAt))) {
+      const toStage = event.kind === 'stage' ? event.text.split(' → ')[1] : '';
+      if (event.kind === 'contact' || ['Contatado', 'Respondeu', 'Em negociação', 'Cliente fechado'].includes(toStage)) contactedIds.add(event.leadId);
+      if (['Respondeu', 'Em negociação', 'Cliente fechado'].includes(toStage)) {
+        respondedIds.add(event.leadId);
+        if (!seenResponses.has(event.leadId)) {const day=event.createdAt.slice(0,10);responsesByDay[day]=(responsesByDay[day]||0)+1;seenResponses.add(event.leadId);}
+      }
+      if (toStage === 'Cliente fechado' && !seenConversions.has(event.leadId)) {const day=event.createdAt.slice(0,10);conversionsByDay[day]=(conversionsByDay[day]||0)+1;seenConversions.add(event.leadId);}
+    }
+    const contacted = contactedIds.size, responded = respondedIds.size;
     const byDay: Record<string, number> = {},
       byCategory: Record<string, number> = {};
     for (const l of rows) {
@@ -847,6 +863,8 @@ export async function buildApp(
       highPriority: rows.filter((l) => (l.score ?? 0) >= 80).length,
       contacted,
       responded,
+      responsesByDay: Object.entries(responsesByDay).sort().map(([name,value])=>({name,value})),
+      conversionsByDay: Object.entries(conversionsByDay).sort().map(([name,value])=>({name,value})),
       responseRate: contacted ? (responded / contacted) * 100 : 0,
       conversionRate: rows.length
         ? (counts["Cliente fechado"] / rows.length) * 100

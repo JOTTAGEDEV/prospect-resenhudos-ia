@@ -355,6 +355,7 @@ function App() {
     </QueryClientProvider>
   );
 }
+document.documentElement.dataset.theme = localStorage.getItem('jotage-theme-v1') || 'dark';
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <App />
