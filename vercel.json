@@ -7,7 +7,7 @@
     { "source": "/login", "destination": "/index.html" },
     { "source": "/descobrir", "destination": "/index.html" },
     { "source": "/leads/:path*", "destination": "/index.html" },
-    { "source": "/analises", "destination": "/index.html" },
+    { "source": "/analise", "destination": "/index.html" },
     { "source": "/pipeline", "destination": "/index.html" },
     { "source": "/mensagens", "destination": "/index.html" },
     { "source": "/atividades", "destination": "/index.html" },

@@ -26,7 +26,19 @@ export async function api<T>(
       ...options.headers,
     },
   });
-  const body = await response.json();
+  const unavailable =
+    "O serviço de dados não está disponível neste endereço. Esta publicação contém apenas a interface; o login e os dados precisam de um backend conectado.";
+  if (!response.headers.get("content-type")?.includes("application/json"))
+    throw new ApiError(503, unavailable);
+  let body;
+  try {
+    body = await response.json();
+  } catch {
+    throw new ApiError(
+      503,
+      "O serviço retornou uma resposta inválida. Tente novamente em instantes.",
+    );
+  }
   if (!response.ok)
     throw new ApiError(
       response.status,
