@@ -24,7 +24,7 @@
 
 ## Verificações executadas
 
-- [x] `npm run verify`: TypeScript, ESLint, **52 testes Vitest** e builds web/API passaram.
+- [x] `npm run verify`: TypeScript, ESLint, **55 testes Vitest** e builds web/API passaram.
 - [x] `npm run test:e2e`: fluxo integrado Chromium passou, com banco e servidor exclusivos de teste.
 - [x] E2E: login → descoberta mockada → auditoria mockada → IA mockada → mensagem → aprovação → pipeline → reload → cadastro manual → configurações.
 - [x] E2E: sem erros JavaScript ou overflow nos tamanhos móveis/tablet testados; modo reduced-motion.
@@ -45,11 +45,11 @@
 
 - Auditoria restrita ao HTML inicial, sem Lighthouse, execução de scripts remotos, performance, responsividade visual ou varredura de links quebrados. A interface declara as limitações.
 - Importação/exportação pequenas, pontuação e mensagens são endpoints síncronos limitados; não têm todos os jobs assíncronos descritos no prompt amplo. A fila cobre pesquisa/auditoria/análise.
-- Execute uma instância da API por banco; a fila não foi preparada para workers distribuídos.
+- Localmente, execute uma instância da API por banco. Na Vercel, as funções usam Turso e Vercel Queues, com entrega pelo menos uma vez; chamadas externas podem se repetir após interrupções. Consulte `VERCEL.md`.
 - Etapas do pipeline são fixas. Não há interface de gestão de equipes, responsáveis ou cadastro público.
 - Pesquisa requer coordenadas, sem geocodificação. Correspondências ambíguas não são mescladas automaticamente.
 - Sem restauração de JSON pela interface; backup integral de SQLite e restauração manual documentados.
-- Sem pagamentos, disparos, deploy público ou agendamentos automáticos de prospecção.
+- Sem pagamentos, disparos ou agendamentos automáticos de prospecção.
 - Os critérios externos permanecem pendentes até validar Gemini e Overpass ao vivo.
 
 ## Repositório e acesso

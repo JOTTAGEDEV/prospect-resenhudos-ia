@@ -3,7 +3,6 @@ import { send } from "@vercel/queue";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
-import staticPlugin from "@fastify/static";
 import { and, eq, desc, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { GoogleGenAI } from "@google/genai";
@@ -1294,6 +1293,7 @@ export async function buildApp(
   });
   const webRoot = resolve(root, "apps/web/dist");
   if (!process.env.VERCEL && existsSync(webRoot)) {
+    const { default: staticPlugin } = await import("@fastify/static");
     await app.register(staticPlugin, { root: webRoot });
     app.setNotFoundHandler((request, reply) =>
       request.url.startsWith("/api/")
