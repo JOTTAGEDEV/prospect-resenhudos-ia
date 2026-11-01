@@ -176,7 +176,7 @@ export async function buildApp(
     }
     if (
       request.url.split("?")[0] === "/api/health" ||
-      request.url === "/api/auth/login"
+      request.url.split("?")[0] === "/api/auth/login"
     )
       return;
     const token = request.cookies.session;

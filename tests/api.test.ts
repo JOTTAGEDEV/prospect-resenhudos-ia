@@ -80,10 +80,10 @@ describe("Fluxo integrado", () => {
       ).statusCode,
     ).toBe(403);
   });
-  it("autentica e emite cookie protegido", async () => {
+  it("autentica com query de roteamento e emite cookie protegido", async () => {
     const result = await app.inject({
       method: "POST",
-      url: "/api/auth/login",
+      url: "/api/auth/login?path=auth%2Flogin",
       headers: { "x-requested-with": "JotageProspect" },
       payload: { username: "admin123", password: "test-password-long" },
     });
