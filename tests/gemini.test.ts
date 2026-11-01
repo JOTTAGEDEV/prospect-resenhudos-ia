@@ -49,6 +49,7 @@ describe("Gemini com SDK mockado", () => {
       audit: null,
     });
     expect(result.businessSummary).toBe(response.businessSummary);
+    expect(generate.mock.calls[0][0].config).not.toHaveProperty("temperature");
     expect((await database.db.select().from(usage).get())?.tokens).toBe(120);
     expect(generate.mock.calls[0][0].contents).not.toContain("email");
   });
@@ -187,21 +188,19 @@ describe("Pesquisa de contatos com fontes", () => {
     );
   });
   it("não publica links com protocolo executável", async () => {
-    const generate = vi
-      .fn()
-      .mockResolvedValue({
-        text: "Resultado",
-        candidates: [
-          {
-            groundingMetadata: {
-              groundingChunks: [{ web: { uri: "javascript:alert(1)" } }],
-              groundingSupports: [
-                { segment: { endIndex: 9 }, groundingChunkIndices: [0] },
-              ],
-            },
+    const generate = vi.fn().mockResolvedValue({
+      text: "Resultado",
+      candidates: [
+        {
+          groundingMetadata: {
+            groundingChunks: [{ web: { uri: "javascript:alert(1)" } }],
+            groundingSupports: [
+              { segment: { endIndex: 9 }, groundingChunkIndices: [0] },
+            ],
           },
-        ],
-      });
+        },
+      ],
+    });
     await expect(
       provider(generate).researchContacts(workspaceId, {
         name: "Empresa",

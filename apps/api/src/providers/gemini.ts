@@ -1,3 +1,4 @@
+import { geminiError } from "./gemini-error.js";
 import { GoogleGenAI, type GenerateContentResponse } from "@google/genai";
 import { z } from "zod";
 import {
@@ -113,7 +114,6 @@ export class GeminiProvider implements AIProvider {
                 responseMimeType: "application/json",
                 responseJsonSchema: z.toJSONSchema(schema),
               }),
-          temperature: 0.2,
         },
       });
       const parsed = schema.parse(
@@ -141,24 +141,12 @@ export class GeminiProvider implements AIProvider {
           502,
           "A consulta excedeu o prazo desta tentativa. A tarefa poderá ser retomada.",
         );
-      const code =
-        typeof error === "object" && error && "status" in error
-          ? Number(error.status)
-          : 0;
-      if (code === 429)
-        throw new AppError(
-          429,
-          "Quota do Gemini atingida. Aguarde antes de retomar.",
-        );
       if (error instanceof z.ZodError || error instanceof SyntaxError)
         throw new AppError(
           502,
           "Gemini retornou uma estrutura inválida; nenhuma análise foi salva.",
         );
-      throw new AppError(
-        502,
-        "Não foi possível consultar Gemini. Verifique chave, modelo, quota e conexão.",
-      );
+      throw geminiError(error);
     }
   }
   async researchContacts(
