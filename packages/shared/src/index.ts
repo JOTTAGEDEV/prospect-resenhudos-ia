@@ -64,6 +64,7 @@ export const searchInput = z
     radiusKm: z.number().min(0.1).max(50).default(5),
     category: z.enum(segments).default("Oficinas mecânicas"),
     limit: z.number().int().min(1).max(50).default(20),
+    excludeWithWebsite: z.boolean().optional(),
   })
   .strict();
 export const analysisSchema = z.object({
@@ -178,3 +179,17 @@ export const contactResearchSchema = z.object({
   searchSuggestions: z.string().max(100000).optional(),
 });
 export type ContactResearch = z.infer<typeof contactResearchSchema>;
+
+export const websiteScreeningSchema = z.object({
+  kind: z.literal("website-screening"),
+  deadline: z.number(),
+  candidates: z.array(
+    z.object({
+      lead: leadInput,
+      decision: z.enum(["pending", "has_website", "not_found", "inconclusive"]),
+      reason: z.string(),
+      sources: z.array(contactResearchSchema.shape.sources.element).max(51),
+      searchSuggestions: z.string().optional(),
+    }),
+  ),
+});

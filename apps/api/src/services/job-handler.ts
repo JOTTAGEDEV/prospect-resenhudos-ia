@@ -9,6 +9,7 @@ import type { BusinessSearchProvider } from "../providers/overpass.js";
 import type { WebsiteAuditService } from "./audit.js";
 import type { AIProvider } from "../providers/gemini.js";
 import { digest } from "../security/crypto.js";
+import { screenSearch } from "./website-screening.js";
 export function createHandler(
   db: DB,
   search: BusinessSearchProvider,
@@ -26,11 +27,14 @@ export function createHandler(
         )
         .get();
       if (!record) throw new AppError(404, "Pesquisa não encontrada");
+      const input = searchInput.parse(record.query);
       await db
         .update(s.searches)
         .set({ status: "running" })
         .where(eq(s.searches.id, record.id))
         .run();
+      if (input.excludeWithWebsite)
+        return screenSearch(db, job, input, search, ai, auditor, signal);
       await progress(10);
       const found = await search.search(
         searchInput.parse(record.query),

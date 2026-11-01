@@ -25,6 +25,7 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     .getByRole("link", { name: "Descobrir empresas", exact: true })
     .first()
     .click();
+  await page.getByRole("checkbox", { name: /Verificar sites antes/ }).uncheck();
   await page.getByRole("button", { name: "Buscar empresas" }).click();
   await page
     .getByRole("link", { name: "Abrir [TESTE] Oficina Aurora", exact: true })

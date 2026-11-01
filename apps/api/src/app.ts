@@ -627,6 +627,7 @@ export async function buildApp(
       .get();
     if (
       cached &&
+      !input.excludeWithWebsite &&
       Date.now() - Date.parse(cached.createdAt) < 24 * 60 * 60 * 1000
     )
       return { ...cached, cached: true };
@@ -724,16 +725,19 @@ export async function buildApp(
       .run();
     return { ok: true };
   });
-  app.get(
-    "/api/jobs",
-    async (request) =>
+  app.get("/api/jobs", async (request) =>
+    (
       await db
         .select()
         .from(s.jobs)
         .where(eq(s.jobs.workspaceId, request.auth.workspaceId))
         .orderBy(desc(s.jobs.createdAt))
         .limit(100)
-        .all(),
+        .all()
+    ).map((job) => ({
+      ...job,
+      result: job.kind === "search" ? null : job.result,
+    })),
   );
   app.post(
     "/api/jobs/:id/cancel",

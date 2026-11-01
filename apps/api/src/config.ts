@@ -39,6 +39,6 @@ export const allowedOrigins = new Set(
   ].filter(Boolean),
 );
 
-export const TASK_TIMEOUT_MS = 240000;
+export const TASK_TIMEOUT_MS = 285000;
 export const WORKER_LEASE_SECONDS = 300;
-export const GEMINI_TIMEOUT_MS = 180000;
+export const GEMINI_TIMEOUT_MS = 270000;

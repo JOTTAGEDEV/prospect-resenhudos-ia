@@ -14,6 +14,7 @@ import { FieldGroup } from "../components/ui/field";
 import { Alert, AlertDescription, AlertTitle } from "../components/ui/alert";
 import { LeadTable } from "../components/LeadTable";
 import { Jobs } from "../components/Jobs";
+import { SearchScreening } from "../components/SearchScreening";
 type SearchRecord = {
   id: string;
   createdAt: string;
@@ -22,6 +23,7 @@ type SearchRecord = {
   duplicates: number;
   query: { category: string; city: string };
   results: Lead[];
+  jobs?: { result: unknown; kind: string }[];
 };
 export default function Discovery() {
   const [city, setCity] = useState("Palhoça"),
@@ -32,6 +34,7 @@ export default function Discovery() {
     [limit, setLimit] = useState("20"),
     [category, setCategory] = useState<string>("Oficinas mecânicas"),
     [selected, setSelected] = useState("");
+  const [excludeWithWebsite, setExcludeWithWebsite] = useState(true);
   const action = useAction<SearchRecord>((value) => setSelected(value.id));
   const settings = useQuery({
     queryKey: ["settings"],
@@ -95,6 +98,7 @@ export default function Discovery() {
                   radiusKm: Number(radius),
                   limit: Number(limit),
                   category,
+                  excludeWithWebsite,
                 },
               });
             }}
@@ -152,6 +156,22 @@ export default function Discovery() {
                   />
                 </div>
               </div>
+              <label className="flex items-start gap-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-1"
+                  checked={excludeWithWebsite}
+                  onChange={(e) => setExcludeWithWebsite(e.target.checked)}
+                />
+                <span>
+                  Verificar sites antes de enviar para revisão
+                  <span className="helper block mt-1">
+                    Descarta empresas com site próprio. A rodada salva o
+                    progresso e pode levar até 10 minutos. Usa sua configuração
+                    Gemini; redes sociais não contam como site.
+                  </span>
+                </span>
+              </label>
               <Button type="submit" disabled={action.isPending}>
                 <Search data-icon="inline-start" />
                 {action.isPending ? "Iniciando…" : "Buscar empresas"}
@@ -169,8 +189,9 @@ export default function Discovery() {
             <AlertTitle>Dados reais. Cobertura variável.</AlertTitle>
             <AlertDescription>
               OpenStreetMap pode não ter todos os contatos ou empresas da
-              região. Ausência na fonte não comprova inexistência. Pesquisas
-              repetidas usam cache por 24 horas.
+              região. Ausência na fonte não comprova inexistência. Pesquisas sem
+              verificação usam cache por 24 horas. Com o filtro ativado, cada
+              nova rodada verifica os sites novamente e consome quota de IA.
             </AlertDescription>
           </Alert>
           <div className="panel">
@@ -217,6 +238,11 @@ export default function Discovery() {
           <Failure error={detail.error} />
         ) : detail.data ? (
           <>
+            <SearchScreening
+              result={
+                detail.data.jobs?.find((job) => job.kind === "search")?.result
+              }
+            />
             <p className="helper mb-4">
               {detail.data.total} resultados · {detail.data.duplicates}{" "}
               duplicatas identificadas

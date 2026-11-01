@@ -3,6 +3,7 @@ import { type DB, stamp } from "../database/db.js";
 import { jobs } from "../database/schema.js";
 import { TASK_TIMEOUT_MS } from "../config.js";
 import { AppError } from "../services/leads.js";
+import { JobContinuation } from "./continuation.js";
 export type Job = typeof jobs.$inferSelect;
 export type Handler = (
   job: Job,
@@ -118,6 +119,22 @@ export class Queue {
             .run();
         else throw controller.signal.reason;
       } catch (error) {
+        if (error instanceof JobContinuation && !controller.signal.aborted) {
+          await this.db
+            .update(jobs)
+            .set({
+              status: "pending",
+              result: error.checkpoint,
+              progress: error.progress,
+              attempts: 0,
+              error: null,
+              nextRunAt: Date.now() + error.delayMs,
+              updatedAt: new Date().toISOString(),
+            })
+            .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")))
+            .run();
+          return;
+        }
         const current = await this.db
           .select()
           .from(jobs)
