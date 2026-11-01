@@ -7,8 +7,7 @@ import { hashPassword } from "../apps/api/src/security/crypto.js";
 import { leadInput } from "@jotage/shared";
 import { saveLead } from "../apps/api/src/services/leads.js";
 import { Queue } from "../apps/api/src/workers/queue.js";
-
-const database = openDatabase(":memory:");
+const database = await openDatabase(":memory:");
 let app: Awaited<ReturnType<typeof buildApp>>["app"];
 let queue: Queue;
 let cookie = "";
@@ -23,20 +22,22 @@ beforeAll(async () => {
     email: "admin@jotage.local",
     passwordHash: await hashPassword("test-password-long"),
   };
-  database.db.insert(s.users).values(user).run();
+  await database.db.insert(s.users).values(user).run();
   const workspace = { ...stamp(), name: "Teste" },
     other = { ...stamp(), name: "Outro" };
   workspaceId = workspace.id;
   otherId = other.id;
-  database.db.insert(s.workspaces).values([workspace, other]).run();
-  database.db
+  await database.db.insert(s.workspaces).values([workspace, other]).run();
+  await database.db
     .insert(s.members)
     .values({ ...stamp(), workspaceId, userId: user.id })
     .run();
-  foreignLead = saveLead(
-    database.db,
-    other.id,
-    leadInput.parse({ name: "Empresa de outro workspace" }),
+  foreignLead = (
+    await saveLead(
+      database.db,
+      other.id,
+      leadInput.parse({ name: "Empresa de outro workspace" }),
+    )
   ).lead.id;
   const built = await buildApp(database.db, {
     worker: false,
@@ -329,34 +330,46 @@ describe("Fluxo integrado", () => {
       url: "/api/dashboard",
       headers: headers(),
     });
-    const count = database.db
-      .select()
-      .from(s.leads)
-      .where(eq(s.leads.workspaceId, workspaceId))
-      .all().length;
+    const count = (
+      await database.db
+        .select()
+        .from(s.leads)
+        .where(eq(s.leads.workspaceId, workspaceId))
+        .all()
+    ).length;
     expect(response.json().total).toBe(count);
   });
   it("recupera tarefa interrompida sem duplicar enfileiramento", async () => {
-    const job = queue.enqueue(workspaceId, "audit", leadId);
-    database.db
+    const job = await queue.enqueue(workspaceId, "audit", leadId);
+    await database.db
       .update(s.jobs)
       .set({ status: "running" })
       .where(eq(s.jobs.id, job.id))
       .run();
-    queue.start();
+    await queue.start();
     expect(
-      database.db.select().from(s.jobs).where(eq(s.jobs.id, job.id)).get()
-        ?.status,
+      (
+        await database.db
+          .select()
+          .from(s.jobs)
+          .where(eq(s.jobs.id, job.id))
+          .get()
+      )?.status,
     ).toBe("pending");
-    expect(queue.enqueue(workspaceId, "audit", leadId).id).toBe(job.id);
+    expect((await queue.enqueue(workspaceId, "audit", leadId)).id).toBe(job.id);
     await queue.stop();
   });
-  it("cancela tarefa pendente", () => {
-    const job = queue.enqueue(workspaceId, "analyze", leadId);
-    queue.cancel(workspaceId, job.id);
+  it("cancela tarefa pendente", async () => {
+    const job = await queue.enqueue(workspaceId, "analyze", leadId);
+    await queue.cancel(workspaceId, job.id);
     expect(
-      database.db.select().from(s.jobs).where(eq(s.jobs.id, job.id)).get()
-        ?.status,
+      (
+        await database.db
+          .select()
+          .from(s.jobs)
+          .where(eq(s.jobs.id, job.id))
+          .get()
+      )?.status,
     ).toBe("cancelled");
   });
   it("altera senha somente após validar a atual", async () => {

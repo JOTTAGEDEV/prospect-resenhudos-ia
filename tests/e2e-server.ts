@@ -9,7 +9,7 @@ import { parsePage } from "../apps/api/src/services/audit.js";
 import { users, workspaces, members } from "../apps/api/src/database/schema.js";
 import { leadInput, type Analysis } from "@jotage/shared";
 const directory = mkdtempSync(join(tmpdir(), "jotage-e2e-"));
-const { db, sqlite } = openDatabase(join(directory, "test.db"));
+const { db, sqlite } = await openDatabase(join(directory, "test.db"));
 const user = {
   ...stamp(),
   email: "admin@jotage.local",
@@ -20,9 +20,10 @@ const workspace = {
   name: "Teste E2E · dados fictícios",
   demo: true,
 };
-db.insert(users).values(user).run();
-db.insert(workspaces).values(workspace).run();
-db.insert(members)
+await db.insert(users).values(user).run();
+await db.insert(workspaces).values(workspace).run();
+await db
+  .insert(members)
   .values({ ...stamp(), userId: user.id, workspaceId: workspace.id })
   .run();
 const analysis: Analysis = {

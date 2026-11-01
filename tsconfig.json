@@ -15,5 +15,5 @@
     "baseUrl": ".",
     "paths": { "@/*": ["apps/web/src/*"] }
   },
-  "include": ["apps", "packages", "tests", "scripts", "*.ts"]
+  "include": ["apps", "api", "packages", "tests", "scripts", "*.ts"]
 }

@@ -121,6 +121,7 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     fullPage: true,
   });
   expect(errors).toEqual([]);
+  await page.emulateMedia({ reducedMotion: "reduce" });
   for (const theme of ["dark", "light"]) {
     await page.evaluate((value) => {
       document.documentElement.dataset.theme = value;

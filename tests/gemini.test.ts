@@ -12,15 +12,15 @@ const response = {
   suggestedApproach: "Conversar",
   limitations: ["Dados limitados"],
 };
-let database: ReturnType<typeof openDatabase>;
+let database: Awaited<ReturnType<typeof openDatabase>>;
 let workspaceId: string;
-beforeEach(() => {
-  database = openDatabase(":memory:");
+beforeEach(async () => {
+  database = await openDatabase(":memory:");
   const workspace = { ...stamp(), name: "Teste IA" };
   workspaceId = workspace.id;
-  database.db.insert(workspaces).values(workspace).run();
+  await database.db.insert(workspaces).values(workspace).run();
   config.secret = "secret-only-for-test".repeat(3);
-  updateSettings(database.db, workspaceId, {
+  await updateSettings(database.db, workspaceId, {
     ...defaults,
     model: "model-test-only",
     dailyLimit: 2,
@@ -49,7 +49,7 @@ describe("Gemini com SDK mockado", () => {
       audit: null,
     });
     expect(result.businessSummary).toBe(response.businessSummary);
-    expect(database.db.select().from(usage).get()?.tokens).toBe(120);
+    expect((await database.db.select().from(usage).get())?.tokens).toBe(120);
     expect(generate.mock.calls[0][0].contents).not.toContain("email");
   });
   it("reserva chamadas e bloqueia acima do teto", async () => {
@@ -83,7 +83,9 @@ describe("Gemini com SDK mockado", () => {
         audit: null,
       }),
     ).rejects.toThrow("Quota do Gemini");
-    expect(database.db.select().from(usage).get()?.status).toBe("failed");
+    expect((await database.db.select().from(usage).get())?.status).toBe(
+      "failed",
+    );
   });
   it("descarta JSON malformado", async () => {
     const ai = provider(vi.fn().mockResolvedValue({ text: "não é JSON" }));

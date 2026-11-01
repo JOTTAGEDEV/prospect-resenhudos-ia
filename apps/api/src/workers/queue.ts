@@ -16,8 +16,8 @@ export class Queue {
     private db: DB,
     private handler: Handler,
   ) {}
-  enqueue(workspaceId: string, kind: string, targetId: string) {
-    const existing = this.db
+  async enqueue(workspaceId: string, kind: string, targetId: string) {
+    const existing = await this.db
       .select()
       .from(jobs)
       .where(
@@ -30,15 +30,15 @@ export class Queue {
       )
       .get();
     if (existing) return existing;
-    return this.db
+    return await this.db
       .insert(jobs)
       .values({ ...stamp(), workspaceId, kind, targetId, status: "pending" })
       .returning()
       .get();
   }
-  start() {
+  async start() {
     // Single API process owns the worker; uncompleted jobs recover after a restart.
-    this.db
+    await this.db
       .update(jobs)
       .set({ status: "pending", error: "Retomada após reinicialização" })
       .where(eq(jobs.status, "running"))
@@ -46,28 +46,33 @@ export class Queue {
     this.timer = setInterval(() => void this.tick(), 1000);
     this.timer.unref();
   }
-  async tick() {
+  async tick(id?: string) {
     if (this.running) return;
     this.running = true;
     try {
-      const job = this.db.transaction((tx) => {
-        const next = tx
+      const job = await this.db.transaction(async (tx) => {
+        const next = await tx
           .select()
           .from(jobs)
           .where(
-            and(eq(jobs.status, "pending"), lte(jobs.nextRunAt, Date.now())),
+            and(
+              eq(jobs.status, "pending"),
+              lte(jobs.nextRunAt, Date.now()),
+              id ? eq(jobs.id, id) : undefined,
+            ),
           )
           .orderBy(asc(jobs.createdAt))
           .get();
         if (!next) return undefined;
         if (next.attempts >= 3) {
-          tx.update(jobs)
+          await tx
+            .update(jobs)
             .set({ status: "failed", error: "Limite de tentativas atingido" })
             .where(eq(jobs.id, next.id))
             .run();
           return undefined;
         }
-        return tx
+        return await tx
           .update(jobs)
           .set({
             status: "running",
@@ -87,15 +92,18 @@ export class Queue {
         60000,
       );
       try {
-        const result = await this.handler(job, controller.signal, (value) =>
-          this.db
-            .update(jobs)
-            .set({ progress: value, updatedAt: new Date().toISOString() })
-            .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")))
-            .run(),
+        const result = await this.handler(
+          job,
+          controller.signal,
+          async (value) =>
+            await this.db
+              .update(jobs)
+              .set({ progress: value, updatedAt: new Date().toISOString() })
+              .where(and(eq(jobs.id, job.id), eq(jobs.status, "running")))
+              .run(),
         );
         if (!controller.signal.aborted)
-          this.db
+          await this.db
             .update(jobs)
             .set({
               status: "completed",
@@ -109,7 +117,7 @@ export class Queue {
             .run();
         else throw controller.signal.reason;
       } catch (error) {
-        const current = this.db
+        const current = await this.db
           .select()
           .from(jobs)
           .where(eq(jobs.id, job.id))
@@ -119,7 +127,7 @@ export class Queue {
           const permanent =
             error instanceof AppError &&
             [400, 404, 409, 422].includes(error.statusCode);
-          this.db
+          await this.db
             .update(jobs)
             .set({
               status: quota
@@ -128,7 +136,7 @@ export class Queue {
                   ? "failed"
                   : "pending",
               error: error instanceof Error ? error.message : "Falha na tarefa",
-              nextRunAt: Date.now() + 30_000 * 2 ** job.attempts,
+              nextRunAt: Date.now() + 30000 * 2 ** job.attempts,
               updatedAt: new Date().toISOString(),
             })
             .where(eq(jobs.id, job.id))
@@ -142,8 +150,8 @@ export class Queue {
       this.running = false;
     }
   }
-  cancel(workspaceId: string, id: string) {
-    const changed = this.db
+  async cancel(workspaceId: string, id: string) {
+    const changed = await this.db
       .update(jobs)
       .set({
         status: "cancelled",

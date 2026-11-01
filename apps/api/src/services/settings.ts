@@ -19,8 +19,8 @@ export const defaults: Settings = {
   radiusKm: 5,
   weights: defaultWeights,
 };
-export function getSettings(db: DB, workspaceId: string) {
-  const row = db
+export async function getSettings(db: DB, workspaceId: string) {
+  const row = await db
     .select()
     .from(settings)
     .where(eq(settings.workspaceId, workspaceId))
@@ -31,8 +31,8 @@ export function getSettings(db: DB, workspaceId: string) {
     aiConfigured: !!(row?.encryptedKey || process.env.GEMINI_API_KEY),
   };
 }
-export function getApiKey(db: DB, workspaceId: string) {
-  const row = db
+export async function getApiKey(db: DB, workspaceId: string) {
+  const row = await db
     .select()
     .from(settings)
     .where(eq(settings.workspaceId, workspaceId))
@@ -41,9 +41,13 @@ export function getApiKey(db: DB, workspaceId: string) {
     ? decrypt(row.encryptedKey, config.secret)
     : process.env.GEMINI_API_KEY || "";
 }
-export function updateSettings(db: DB, workspaceId: string, input: Settings) {
+export async function updateSettings(
+  db: DB,
+  workspaceId: string,
+  input: Settings,
+) {
   const { apiKey, clearApiKey, aiConfigured: _configured, ...data } = input;
-  const row = db
+  const row = await db
     .select()
     .from(settings)
     .where(eq(settings.workspaceId, workspaceId))
@@ -54,13 +58,15 @@ export function updateSettings(db: DB, workspaceId: string, input: Settings) {
       ? encrypt(apiKey, config.secret)
       : row?.encryptedKey;
   if (row)
-    db.update(settings)
+    await db
+      .update(settings)
       .set({ data, encryptedKey, updatedAt: new Date().toISOString() })
       .where(eq(settings.workspaceId, workspaceId))
       .run();
   else
-    db.insert(settings)
+    await db
+      .insert(settings)
       .values({ ...stamp(), workspaceId, data, encryptedKey })
       .run();
-  return getSettings(db, workspaceId);
+  return await getSettings(db, workspaceId);
 }

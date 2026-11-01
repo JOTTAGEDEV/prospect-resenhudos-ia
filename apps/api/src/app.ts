@@ -1,4 +1,5 @@
 import Fastify, { type FastifyRequest } from "fastify";
+import { send } from "@vercel/queue";
 import cookie from "@fastify/cookie";
 import helmet from "@fastify/helmet";
 import rateLimit from "@fastify/rate-limit";
@@ -41,8 +42,11 @@ import {
 } from "./providers/overpass.js";
 import { WebsiteAuditor, type WebsiteAuditService } from "./services/audit.js";
 import { GeminiProvider, type AIProvider } from "./providers/gemini.js";
-
-type Auth = { userId: string; workspaceId: string; email: string };
+type Auth = {
+  userId: string;
+  workspaceId: string;
+  email: string;
+};
 declare module "fastify" {
   interface FastifyRequest {
     auth: Auth;
@@ -71,8 +75,34 @@ export async function buildApp(
           level: "info",
         }
       : false,
-    bodyLimit: 1_000_000,
+    bodyLimit: 1000000,
   });
+  if (process.env.VERCEL)
+    app.addHook("preSerialization", async (request, reply, payload) => {
+      if (request.auth?.workspaceId && reply.statusCode < 400) {
+        const pending = await db
+          .select()
+          .from(s.jobs)
+          .where(
+            and(
+              eq(s.jobs.workspaceId, request.auth.workspaceId),
+              eq(s.jobs.status, "pending"),
+            ),
+          )
+          .limit(20)
+          .all();
+        for (const job of pending)
+          await send(
+            "prospect-jobs",
+            { id: job.id },
+            {
+              idempotencyKey: `${job.id}-${job.attempts}-${job.nextRunAt}`,
+              retentionSeconds: 604800,
+            },
+          );
+      }
+      return payload;
+    });
   const ai = options.ai || new GeminiProvider(db);
   const queue = new Queue(
     db,
@@ -118,7 +148,11 @@ export async function buildApp(
     const status =
       error instanceof AppError
         ? error.statusCode
-        : (error as { statusCode?: number }).statusCode || 500;
+        : (
+            error as {
+              statusCode?: number;
+            }
+          ).statusCode || 500;
     if (status >= 500)
       app.log.error({ code: status }, "Falha ao processar solicitação");
     return reply.code(status).send({
@@ -148,7 +182,7 @@ export async function buildApp(
       return;
     const token = request.cookies.session;
     const session = token
-      ? db
+      ? await db
           .select()
           .from(s.sessions)
           .where(eq(s.sessions.id, digest(token)))
@@ -156,7 +190,7 @@ export async function buildApp(
       : undefined;
     if (!session || session.expiresAt < Date.now())
       throw new AppError(401, "Faça login para continuar");
-    const member = db
+    const member = await db
       .select()
       .from(s.members)
       .where(
@@ -166,7 +200,7 @@ export async function buildApp(
         ),
       )
       .get();
-    const user = db
+    const user = await db
       .select()
       .from(s.users)
       .where(eq(s.users.id, session.userId))
@@ -196,7 +230,7 @@ export async function buildApp(
         )
         .parse(request.body);
       const login = (input.username || input.email || "").toLowerCase();
-      const user = db
+      const user = await db
         .select()
         .from(s.users)
         .where(
@@ -212,7 +246,7 @@ export async function buildApp(
       );
       if (!valid || !user)
         throw new AppError(401, "Usuário ou senha inválidos");
-      const member = db
+      const member = await db
         .select()
         .from(s.members)
         .where(eq(s.members.userId, user.id))
@@ -220,10 +254,12 @@ export async function buildApp(
       if (!member) throw new AppError(403, "Usuário sem workspace");
       const token = randomBytes(32).toString("base64url");
       if (request.cookies.session)
-        db.delete(s.sessions)
+        await db
+          .delete(s.sessions)
           .where(eq(s.sessions.id, digest(request.cookies.session)))
           .run();
-      db.insert(s.sessions)
+      await db
+        .insert(s.sessions)
         .values({
           id: digest(token),
           userId: user.id,
@@ -243,7 +279,8 @@ export async function buildApp(
   );
   app.post("/api/auth/logout", async (request, reply) => {
     if (request.cookies.session)
-      db.delete(s.sessions)
+      await db
+        .delete(s.sessions)
         .where(eq(s.sessions.id, digest(request.cookies.session)))
         .run();
     reply.clearCookie("session", { path: "/" });
@@ -260,20 +297,21 @@ export async function buildApp(
         })
         .strict()
         .parse(request.body);
-      const user = db
+      const user = (await db
         .select()
         .from(s.users)
         .where(eq(s.users.id, request.auth.userId))
-        .get()!;
+        .get())!;
       if (!(await verifyPassword(input.currentPassword, user.passwordHash)))
         throw new AppError(401, "Senha atual incorreta");
       const passwordHash = await hashPassword(input.newPassword);
-      db.transaction((tx) => {
-        tx.update(s.users)
+      await db.transaction(async (tx) => {
+        await tx
+          .update(s.users)
           .set({ passwordHash, updatedAt: new Date().toISOString() })
           .where(eq(s.users.id, user.id))
           .run();
-        const sessions = tx
+        const sessions = await tx
           .select()
           .from(s.sessions)
           .where(eq(s.sessions.userId, user.id))
@@ -281,8 +319,12 @@ export async function buildApp(
         const current = digest(request.cookies.session!);
         for (const session of sessions)
           if (session.id !== current)
-            tx.delete(s.sessions).where(eq(s.sessions.id, session.id)).run();
-        tx.insert(s.logs)
+            await tx
+              .delete(s.sessions)
+              .where(eq(s.sessions.id, session.id))
+              .run();
+        await tx
+          .insert(s.logs)
           .values({
             ...stamp(),
             workspaceId: request.auth.workspaceId,
@@ -294,9 +336,9 @@ export async function buildApp(
       return { ok: true };
     },
   );
-  app.get("/api/auth/me", (request) => ({
+  app.get("/api/auth/me", async (request) => ({
     ...request.auth,
-    workspaces: db
+    workspaces: await db
       .select({
         id: s.workspaces.id,
         name: s.workspaces.name,
@@ -307,12 +349,12 @@ export async function buildApp(
       .where(eq(s.members.userId, request.auth.userId))
       .all(),
   }));
-  app.post("/api/auth/workspace", (request) => {
+  app.post("/api/auth/workspace", async (request) => {
     const { workspaceId } = z
       .object({ workspaceId: z.uuid() })
       .parse(request.body);
     if (
-      !db
+      !(await db
         .select()
         .from(s.members)
         .where(
@@ -321,17 +363,17 @@ export async function buildApp(
             eq(s.members.workspaceId, workspaceId),
           ),
         )
-        .get()
+        .get())
     )
       throw new AppError(403, "Workspace não autorizado");
-    db.update(s.sessions)
+    await db
+      .update(s.sessions)
       .set({ workspaceId })
       .where(eq(s.sessions.id, digest(request.cookies.session!)))
       .run();
     return { ok: true };
   });
-
-  const filtered = (request: FastifyRequest) => {
+  const filtered = async (request: FastifyRequest) => {
     const query = z
       .object({
         q: z.string().max(200).optional(),
@@ -347,7 +389,7 @@ export async function buildApp(
         pageSize: z.coerce.number().int().min(1).max(100).default(30),
       })
       .parse(request.query);
-    let rows = db
+    let rows = await db
       .select()
       .from(s.leads)
       .where(eq(s.leads.workspaceId, request.auth.workspaceId))
@@ -374,8 +416,8 @@ export async function buildApp(
       rows.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
     return { rows, query };
   };
-  app.get("/api/leads", (request) => {
-    const { rows, query } = filtered(request);
+  app.get("/api/leads", async (request) => {
+    const { rows, query } = await filtered(request);
     return {
       items: rows.slice(
         (query.page - 1) * query.pageSize,
@@ -386,33 +428,39 @@ export async function buildApp(
       pageSize: query.pageSize,
     };
   });
-  app.post("/api/leads", (request) =>
-    saveLead(db, request.auth.workspaceId, leadInput.parse(request.body)),
+  app.post(
+    "/api/leads",
+    async (request) =>
+      await saveLead(
+        db,
+        request.auth.workspaceId,
+        leadInput.parse(request.body),
+      ),
   );
-  app.get("/api/leads/:id", (request) => {
+  app.get("/api/leads/:id", async (request) => {
     const ws = request.auth.workspaceId,
       id = idOf(request),
-      lead = getLead(db, ws, id);
+      lead = await getLead(db, ws, id);
     return {
       lead,
-      sources: db
+      sources: await db
         .select()
         .from(s.sources)
         .where(and(eq(s.sources.workspaceId, ws), eq(s.sources.leadId, id)))
         .all(),
-      audits: db
+      audits: await db
         .select()
         .from(s.audits)
         .where(and(eq(s.audits.workspaceId, ws), eq(s.audits.leadId, id)))
         .orderBy(desc(s.audits.createdAt))
         .all(),
-      analyses: db
+      analyses: await db
         .select()
         .from(s.analyses)
         .where(and(eq(s.analyses.workspaceId, ws), eq(s.analyses.leadId, id)))
         .orderBy(desc(s.analyses.createdAt))
         .all(),
-      activities: db
+      activities: await db
         .select()
         .from(s.activities)
         .where(
@@ -422,10 +470,10 @@ export async function buildApp(
         .all(),
     };
   });
-  app.patch("/api/leads/:id", (request) => {
+  app.patch("/api/leads/:id", async (request) => {
     const ws = request.auth.workspaceId,
       id = idOf(request);
-    getLead(db, ws, id);
+    await getLead(db, ws, id);
     const raw = z.record(z.string(), z.unknown()).parse(request.body);
     const parsed = leadInput.partial().parse(raw);
     const input = Object.fromEntries(
@@ -433,18 +481,18 @@ export async function buildApp(
     );
     if (Object.hasOwn(input, "phone"))
       input.phone = normalizePhone(input.phone as string | null);
-    return db
+    return await db
       .update(s.leads)
       .set({ ...input, updatedAt: new Date().toISOString() })
       .where(and(eq(s.leads.id, id), eq(s.leads.workspaceId, ws)))
       .returning()
       .get();
   });
-  app.delete("/api/leads/:id", (request) => {
+  app.delete("/api/leads/:id", async (request) => {
     const ws = request.auth.workspaceId,
       id = idOf(request);
-    getLead(db, ws, id);
-    for (const job of db
+    await getLead(db, ws, id);
+    for (const job of await db
       .select()
       .from(s.jobs)
       .where(
@@ -455,11 +503,13 @@ export async function buildApp(
         ),
       )
       .all())
-      queue.cancel(ws, job.id);
-    db.delete(s.leads)
+      await queue.cancel(ws, job.id);
+    await db
+      .delete(s.leads)
       .where(and(eq(s.leads.id, id), eq(s.leads.workspaceId, ws)))
       .run();
-    db.insert(s.logs)
+    await db
+      .insert(s.logs)
       .values({
         ...stamp(),
         workspaceId: ws,
@@ -470,33 +520,36 @@ export async function buildApp(
     return { ok: true };
   });
   for (const kind of ["audit", "analyze"])
-    app.post(`/api/leads/:id/${kind}`, (request) => {
+    app.post(`/api/leads/:id/${kind}`, async (request) => {
       const id = idOf(request);
-      getLead(db, request.auth.workspaceId, id);
-      return queue.enqueue(request.auth.workspaceId, kind, id);
+      await getLead(db, request.auth.workspaceId, id);
+      return await queue.enqueue(request.auth.workspaceId, kind, id);
     });
-  app.post("/api/leads/:id/score", (request) =>
-    scoreLead(
-      db,
-      request.auth.workspaceId,
-      idOf(request),
-      getSettings(db, request.auth.workspaceId).weights,
-    ),
+  app.post(
+    "/api/leads/:id/score",
+    async (request) =>
+      await scoreLead(
+        db,
+        request.auth.workspaceId,
+        idOf(request),
+        (await getSettings(db, request.auth.workspaceId)).weights,
+      ),
   );
-  app.patch("/api/leads/:id/stage", (request) => {
+  app.patch("/api/leads/:id/stage", async (request) => {
     const ws = request.auth.workspaceId,
       id = idOf(request),
-      lead = getLead(db, ws, id),
+      lead = await getLead(db, ws, id),
       { stage } = z.object({ stage: stageSchema }).parse(request.body);
     if (lead.stage === "Não contatar" && stage !== "Não contatar")
       throw new AppError(
         409,
         "Remova o bloqueio explicitamente na lista de supressão antes de mudar a etapa.",
       );
-    return db.transaction((tx) => {
+    return await db.transaction(async (tx) => {
       if (stage === "Não contatar")
         for (const contact of contacts(lead))
-          tx.insert(s.suppression)
+          await tx
+            .insert(s.suppression)
             .values({
               ...stamp(),
               workspaceId: ws,
@@ -505,7 +558,8 @@ export async function buildApp(
             })
             .onConflictDoNothing()
             .run();
-      tx.insert(s.activities)
+      await tx
+        .insert(s.activities)
         .values({
           ...stamp(),
           workspaceId: ws,
@@ -514,7 +568,7 @@ export async function buildApp(
           text: `${lead.stage} → ${stage}`,
         })
         .run();
-      return tx
+      return await tx
         .update(s.leads)
         .set({ stage, updatedAt: new Date().toISOString() })
         .where(and(eq(s.leads.workspaceId, ws), eq(s.leads.id, id)))
@@ -522,27 +576,29 @@ export async function buildApp(
         .get();
     });
   });
-  app.get("/api/pipeline", (request) => {
-    const { rows } = filtered(request);
+  app.get("/api/pipeline", async (request) => {
+    const { rows } = await filtered(request);
     return stages.map((stage) => ({
       stage,
       leads: rows.filter((l) => l.stage === stage),
     }));
   });
-  app.get("/api/searches", (request) =>
-    db
-      .select()
-      .from(s.searches)
-      .where(eq(s.searches.workspaceId, request.auth.workspaceId))
-      .orderBy(desc(s.searches.createdAt))
-      .limit(100)
-      .all(),
+  app.get(
+    "/api/searches",
+    async (request) =>
+      await db
+        .select()
+        .from(s.searches)
+        .where(eq(s.searches.workspaceId, request.auth.workspaceId))
+        .orderBy(desc(s.searches.createdAt))
+        .limit(100)
+        .all(),
   );
-  app.post("/api/searches", (request) => {
+  app.post("/api/searches", async (request) => {
     const ws = request.auth.workspaceId,
       input = searchInput.parse(request.body),
       cacheKey = digest(JSON.stringify(input));
-    const cached = db
+    const cached = await db
       .select()
       .from(s.searches)
       .where(
@@ -559,7 +615,7 @@ export async function buildApp(
       Date.now() - Date.parse(cached.createdAt) < 24 * 60 * 60 * 1000
     )
       return { ...cached, cached: true };
-    const active = db
+    const active = await db
       .select()
       .from(s.jobs)
       .where(
@@ -574,7 +630,7 @@ export async function buildApp(
         409,
         "Aguarde a pesquisa atual antes de iniciar outra.",
       );
-    const last = db
+    const last = await db
       .select()
       .from(s.searches)
       .orderBy(desc(s.searches.createdAt))
@@ -584,7 +640,7 @@ export async function buildApp(
         429,
         "Aguarde um minuto entre pesquisas na fonte pública.",
       );
-    const search = db
+    const search = await db
       .insert(s.searches)
       .values({
         ...stamp(),
@@ -595,13 +651,13 @@ export async function buildApp(
       })
       .returning()
       .get();
-    queue.enqueue(ws, "search", search.id);
+    await queue.enqueue(ws, "search", search.id);
     return search;
   });
-  app.get("/api/searches/:id", (request) => {
+  app.get("/api/searches/:id", async (request) => {
     const ws = request.auth.workspaceId,
       id = idOf(request),
-      search = db
+      search = await db
         .select()
         .from(s.searches)
         .where(and(eq(s.searches.workspaceId, ws), eq(s.searches.id, id)))
@@ -609,30 +665,31 @@ export async function buildApp(
     if (!search) throw new AppError(404, "Pesquisa não encontrada");
     return {
       ...search,
-      results: db
-        .select({ lead: s.leads })
-        .from(s.results)
-        .innerJoin(
-          s.leads,
-          and(
-            eq(s.results.leadId, s.leads.id),
-            eq(s.results.workspaceId, s.leads.workspaceId),
-          ),
-        )
-        .where(and(eq(s.results.workspaceId, ws), eq(s.results.searchId, id)))
-        .all()
-        .map((r) => r.lead),
-      jobs: db
+      results: (
+        await db
+          .select({ lead: s.leads })
+          .from(s.results)
+          .innerJoin(
+            s.leads,
+            and(
+              eq(s.results.leadId, s.leads.id),
+              eq(s.results.workspaceId, s.leads.workspaceId),
+            ),
+          )
+          .where(and(eq(s.results.workspaceId, ws), eq(s.results.searchId, id)))
+          .all()
+      ).map((r) => r.lead),
+      jobs: await db
         .select()
         .from(s.jobs)
         .where(and(eq(s.jobs.workspaceId, ws), eq(s.jobs.targetId, id)))
         .all(),
     };
   });
-  app.post("/api/searches/:id/cancel", (request) => {
+  app.post("/api/searches/:id/cancel", async (request) => {
     const ws = request.auth.workspaceId,
       id = idOf(request),
-      job = db
+      job = await db
         .select()
         .from(s.jobs)
         .where(
@@ -644,27 +701,32 @@ export async function buildApp(
         )
         .get();
     if (!job) throw new AppError(404, "Pesquisa não encontrada");
-    queue.cancel(ws, job.id);
-    db.update(s.searches)
+    await queue.cancel(ws, job.id);
+    await db
+      .update(s.searches)
       .set({ status: "cancelled" })
       .where(and(eq(s.searches.id, id), eq(s.searches.workspaceId, ws)))
       .run();
     return { ok: true };
   });
-  app.get("/api/jobs", (request) =>
-    db
-      .select()
-      .from(s.jobs)
-      .where(eq(s.jobs.workspaceId, request.auth.workspaceId))
-      .orderBy(desc(s.jobs.createdAt))
-      .limit(100)
-      .all(),
+  app.get(
+    "/api/jobs",
+    async (request) =>
+      await db
+        .select()
+        .from(s.jobs)
+        .where(eq(s.jobs.workspaceId, request.auth.workspaceId))
+        .orderBy(desc(s.jobs.createdAt))
+        .limit(100)
+        .all(),
   );
-  app.post("/api/jobs/:id/cancel", (request) =>
-    queue.cancel(request.auth.workspaceId, idOf(request)),
+  app.post(
+    "/api/jobs/:id/cancel",
+    async (request) =>
+      await queue.cancel(request.auth.workspaceId, idOf(request)),
   );
-  app.post("/api/jobs/:id/resume", (request) => {
-    const job = db
+  app.post("/api/jobs/:id/resume", async (request) => {
+    const job = await db
       .update(s.jobs)
       .set({ status: "pending", attempts: 0, nextRunAt: 0, error: null })
       .where(
@@ -679,12 +741,11 @@ export async function buildApp(
     if (!job) throw new AppError(409, "Tarefa não pode ser retomada");
     return job;
   });
-
-  app.get("/api/leads/:id/messages", (request) => {
+  app.get("/api/leads/:id/messages", async (request) => {
     const ws = request.auth.workspaceId,
       id = idOf(request);
-    getLead(db, ws, id);
-    return db
+    await getLead(db, ws, id);
+    return await db
       .select()
       .from(s.messages)
       .where(and(eq(s.messages.workspaceId, ws), eq(s.messages.leadId, id)))
@@ -694,8 +755,8 @@ export async function buildApp(
   app.post("/api/leads/:id/messages", async (request) => {
     const ws = request.auth.workspaceId,
       id = idOf(request),
-      lead = getLead(db, ws, id);
-    assertContactAllowed(db, ws, lead);
+      lead = await getLead(db, ws, id);
+    await assertContactAllowed(db, ws, lead);
     const { style, method, maxLength } = z
       .object({
         style: z
@@ -705,14 +766,16 @@ export async function buildApp(
         maxLength: z.number().int().min(200).max(450).default(450),
       })
       .parse(request.body);
-    const settings = getSettings(db, ws),
+    const settings = await getSettings(db, ws),
       audit =
-        db
-          .select()
-          .from(s.audits)
-          .where(and(eq(s.audits.workspaceId, ws), eq(s.audits.leadId, id)))
-          .orderBy(desc(s.audits.createdAt))
-          .get()?.data || null;
+        (
+          await db
+            .select()
+            .from(s.audits)
+            .where(and(eq(s.audits.workspaceId, ws), eq(s.audits.leadId, id)))
+            .orderBy(desc(s.audits.createdAt))
+            .get()
+        )?.data || null;
     const text =
       method === "gemini"
         ? await ai.generateOutreach(
@@ -725,23 +788,23 @@ export async function buildApp(
             0,
             maxLength,
           );
-    assertContactAllowed(db, ws, getLead(db, ws, id));
-    return db
+    await assertContactAllowed(db, ws, await getLead(db, ws, id));
+    return await db
       .insert(s.messages)
       .values({ ...stamp(), workspaceId: ws, leadId: id, text, style, method })
       .returning()
       .get();
   });
-  app.patch("/api/messages/:id", (request) => {
+  app.patch("/api/messages/:id", async (request) => {
     const ws = request.auth.workspaceId,
       id = idOf(request),
-      message = db
+      message = await db
         .select()
         .from(s.messages)
         .where(and(eq(s.messages.workspaceId, ws), eq(s.messages.id, id)))
         .get();
     if (!message) throw new AppError(404, "Mensagem não encontrada");
-    assertContactAllowed(db, ws, getLead(db, ws, message.leadId));
+    await assertContactAllowed(db, ws, await getLead(db, ws, message.leadId));
     const input = z
       .object({
         text: z.string().min(1).max(1500),
@@ -749,7 +812,7 @@ export async function buildApp(
       })
       .parse(request.body);
     // Every edit creates a version, preserving history.
-    return db
+    return await db
       .insert(s.messages)
       .values({
         ...stamp(),
@@ -762,9 +825,9 @@ export async function buildApp(
       .returning()
       .get();
   });
-  app.post("/api/messages/:id/whatsapp", (request) => {
+  app.post("/api/messages/:id/whatsapp", async (request) => {
     const ws = request.auth.workspaceId,
-      message = db
+      message = await db
         .select()
         .from(s.messages)
         .where(
@@ -777,20 +840,22 @@ export async function buildApp(
         409,
         "Revise e aprove a mensagem antes de abrir o contato",
       );
-    const lead = getLead(db, ws, message.leadId);
-    assertContactAllowed(db, ws, lead);
+    const lead = await getLead(db, ws, message.leadId);
+    await assertContactAllowed(db, ws, lead);
     return { url: whatsappLink(lead.phone, message.text) };
   });
-  app.get("/api/activities", (request) =>
-    db
-      .select()
-      .from(s.activities)
-      .where(eq(s.activities.workspaceId, request.auth.workspaceId))
-      .orderBy(desc(s.activities.createdAt))
-      .limit(200)
-      .all(),
+  app.get(
+    "/api/activities",
+    async (request) =>
+      await db
+        .select()
+        .from(s.activities)
+        .where(eq(s.activities.workspaceId, request.auth.workspaceId))
+        .orderBy(desc(s.activities.createdAt))
+        .limit(200)
+        .all(),
   );
-  app.post("/api/activities", (request) => {
+  app.post("/api/activities", async (request) => {
     const ws = request.auth.workspaceId,
       input = z
         .object({
@@ -799,24 +864,26 @@ export async function buildApp(
           kind: z.enum(["note", "contact"]).default("note"),
         })
         .parse(request.body),
-      lead = getLead(db, ws, input.leadId);
-    if (input.kind === "contact") assertContactAllowed(db, ws, lead);
-    return db
+      lead = await getLead(db, ws, input.leadId);
+    if (input.kind === "contact") await assertContactAllowed(db, ws, lead);
+    return await db
       .insert(s.activities)
       .values({ ...stamp(), workspaceId: ws, ...input })
       .returning()
       .get();
   });
-  app.get("/api/tasks", (request) =>
-    db
-      .select()
-      .from(s.tasks)
-      .where(eq(s.tasks.workspaceId, request.auth.workspaceId))
-      .orderBy(s.tasks.dueAt)
-      .limit(500)
-      .all(),
+  app.get(
+    "/api/tasks",
+    async (request) =>
+      await db
+        .select()
+        .from(s.tasks)
+        .where(eq(s.tasks.workspaceId, request.auth.workspaceId))
+        .orderBy(s.tasks.dueAt)
+        .limit(500)
+        .all(),
   );
-  app.post("/api/tasks", (request) => {
+  app.post("/api/tasks", async (request) => {
     const ws = request.auth.workspaceId,
       input = z
         .object({
@@ -825,16 +892,16 @@ export async function buildApp(
           dueAt: z.iso.datetime(),
         })
         .parse(request.body);
-    getLead(db, ws, input.leadId);
-    return db
+    await getLead(db, ws, input.leadId);
+    return await db
       .insert(s.tasks)
       .values({ ...stamp(), workspaceId: ws, ...input })
       .returning()
       .get();
   });
-  app.patch("/api/tasks/:id", (request) => {
+  app.patch("/api/tasks/:id", async (request) => {
     const { done } = z.object({ done: z.boolean() }).parse(request.body);
-    const result = db
+    const result = await db
       .update(s.tasks)
       .set({ done, updatedAt: new Date().toISOString() })
       .where(
@@ -848,15 +915,18 @@ export async function buildApp(
     if (!result) throw new AppError(404, "Tarefa não encontrada");
     return result;
   });
-  app.get("/api/settings", (request) =>
-    getSettings(db, request.auth.workspaceId),
+  app.get(
+    "/api/settings",
+    async (request) => await getSettings(db, request.auth.workspaceId),
   );
-  app.patch("/api/settings", (request) =>
-    updateSettings(
-      db,
-      request.auth.workspaceId,
-      settingsInput.parse(request.body),
-    ),
+  app.patch(
+    "/api/settings",
+    async (request) =>
+      await updateSettings(
+        db,
+        request.auth.workspaceId,
+        settingsInput.parse(request.body),
+      ),
   );
   app.post("/api/settings/test-ai", async (request) => {
     await ai.analyzeBusiness(request.auth.workspaceId, {
@@ -871,7 +941,8 @@ export async function buildApp(
       .object({ apiKey: z.string().trim().max(512).optional() })
       .strict()
       .parse(request.body ?? {});
-    const apiKey = input.apiKey || getApiKey(db, request.auth.workspaceId);
+    const apiKey =
+      input.apiKey || (await getApiKey(db, request.auth.workspaceId));
     if (!apiKey)
       throw new AppError(
         400,
@@ -900,24 +971,28 @@ export async function buildApp(
       );
     }
   });
-  app.get("/api/usage", (request) =>
-    db
-      .select()
-      .from(s.usage)
-      .where(eq(s.usage.workspaceId, request.auth.workspaceId))
-      .orderBy(desc(s.usage.createdAt))
-      .limit(100)
-      .all(),
+  app.get(
+    "/api/usage",
+    async (request) =>
+      await db
+        .select()
+        .from(s.usage)
+        .where(eq(s.usage.workspaceId, request.auth.workspaceId))
+        .orderBy(desc(s.usage.createdAt))
+        .limit(100)
+        .all(),
   );
-  app.get("/api/suppression", (request) =>
-    db
-      .select()
-      .from(s.suppression)
-      .where(eq(s.suppression.workspaceId, request.auth.workspaceId))
-      .all(),
+  app.get(
+    "/api/suppression",
+    async (request) =>
+      await db
+        .select()
+        .from(s.suppression)
+        .where(eq(s.suppression.workspaceId, request.auth.workspaceId))
+        .all(),
   );
-  app.get("/api/dashboard", (request) => {
-    const { rows } = filtered(request),
+  app.get("/api/dashboard", async (request) => {
+    const { rows } = await filtered(request),
       ws = request.auth.workspaceId;
     const counts = Object.fromEntries(
       stages.map((stage) => [
@@ -926,12 +1001,13 @@ export async function buildApp(
       ]),
     );
     const selectedIds = new Set(rows.map((l) => l.id));
-    const history = db
-      .select()
-      .from(s.activities)
-      .where(eq(s.activities.workspaceId, ws))
-      .all()
-      .filter((a) => selectedIds.has(a.leadId));
+    const history = (
+      await db
+        .select()
+        .from(s.activities)
+        .where(eq(s.activities.workspaceId, ws))
+        .all()
+    ).filter((a) => selectedIds.has(a.leadId));
     const contactedIds = new Set(
       rows
         .filter((l) =>
@@ -1005,16 +1081,16 @@ export async function buildApp(
       conversionRate: rows.length
         ? (counts["Cliente fechado"] / rows.length) * 100
         : 0,
-      pendingTasks: db
-        .select()
-        .from(s.tasks)
-        .where(and(eq(s.tasks.workspaceId, ws), eq(s.tasks.done, false)))
-        .all().length,
-      aiCalls: db
-        .select()
-        .from(s.usage)
-        .where(eq(s.usage.workspaceId, ws))
-        .all().length,
+      pendingTasks: (
+        await db
+          .select()
+          .from(s.tasks)
+          .where(and(eq(s.tasks.workspaceId, ws), eq(s.tasks.done, false)))
+          .all()
+      ).length,
+      aiCalls: (
+        await db.select().from(s.usage).where(eq(s.usage.workspaceId, ws)).all()
+      ).length,
       byDay: Object.entries(byDay)
         .sort()
         .map(([name, value]) => ({ name, value })),
@@ -1041,8 +1117,8 @@ export async function buildApp(
       ],
     };
   });
-  app.get("/api/export/leads", (request, reply) => {
-    const { rows } = filtered(request);
+  app.get("/api/export/leads", async (request, reply) => {
+    const { rows } = await filtered(request);
     const columns = [
       "name",
       "category",
@@ -1067,7 +1143,7 @@ export async function buildApp(
       .type("text/csv; charset=utf-8");
     return "\uFEFF" + csv;
   });
-  app.post("/api/import/leads", (request) => {
+  app.post("/api/import/leads", async (request) => {
     const { csv } = z
       .object({ csv: z.string().max(800000) })
       .parse(request.body);
@@ -1104,50 +1180,62 @@ export async function buildApp(
         ),
       ),
     );
-    return db.transaction((tx) => {
+    return await db.transaction(async (tx) => {
       let duplicates = 0;
       for (const input of inputs)
         if (
-          saveLead(tx, request.auth.workspaceId, { ...input, source: "CSV" })
-            .duplicate
+          (
+            await saveLead(tx, request.auth.workspaceId, {
+              ...input,
+              source: "CSV",
+            })
+          ).duplicate
         )
           duplicates++;
       return { imported: inputs.length - duplicates, duplicates };
     });
   });
-  app.get("/api/backup", (request, reply) => {
+  app.get("/api/backup", async (request, reply) => {
     const ws = request.auth.workspaceId;
     const snapshot = {
       version: 1,
       exportedAt: new Date().toISOString(),
-      leads: db.select().from(s.leads).where(eq(s.leads.workspaceId, ws)).all(),
-      sources: db
+      leads: await db
+        .select()
+        .from(s.leads)
+        .where(eq(s.leads.workspaceId, ws))
+        .all(),
+      sources: await db
         .select()
         .from(s.sources)
         .where(eq(s.sources.workspaceId, ws))
         .all(),
-      audits: db
+      audits: await db
         .select()
         .from(s.audits)
         .where(eq(s.audits.workspaceId, ws))
         .all(),
-      analyses: db
+      analyses: await db
         .select()
         .from(s.analyses)
         .where(eq(s.analyses.workspaceId, ws))
         .all(),
-      messages: db
+      messages: await db
         .select()
         .from(s.messages)
         .where(eq(s.messages.workspaceId, ws))
         .all(),
-      activities: db
+      activities: await db
         .select()
         .from(s.activities)
         .where(eq(s.activities.workspaceId, ws))
         .all(),
-      tasks: db.select().from(s.tasks).where(eq(s.tasks.workspaceId, ws)).all(),
-      suppression: db
+      tasks: await db
+        .select()
+        .from(s.tasks)
+        .where(eq(s.tasks.workspaceId, ws))
+        .all(),
+      suppression: await db
         .select()
         .from(s.suppression)
         .where(eq(s.suppression.workspaceId, ws))
@@ -1159,32 +1247,36 @@ export async function buildApp(
     );
     return snapshot;
   });
-  app.post("/api/retention", (request) => {
+  app.post("/api/retention", async (request) => {
     const { before } = z
         .object({ before: z.iso.datetime() })
         .parse(request.body),
       ws = request.auth.workspaceId;
-    const ids = db
-      .select()
-      .from(s.activities)
-      .where(eq(s.activities.workspaceId, ws))
-      .all()
+    const ids = (
+      await db
+        .select()
+        .from(s.activities)
+        .where(eq(s.activities.workspaceId, ws))
+        .all()
+    )
       .filter((a) => a.createdAt < before)
       .map((a) => a.id);
     if (ids.length)
-      db.delete(s.activities)
+      await db
+        .delete(s.activities)
         .where(
           and(eq(s.activities.workspaceId, ws), inArray(s.activities.id, ids)),
         )
         .run();
-    db.insert(s.logs)
+    await db
+      .insert(s.logs)
       .values({ ...stamp(), workspaceId: ws, action: "history.cleaned" })
       .run();
     return { deleted: ids.length };
   });
-  app.delete("/api/demo", (request) => {
+  app.delete("/api/demo", async (request) => {
     const ws = request.auth.workspaceId,
-      workspace = db
+      workspace = await db
         .select()
         .from(s.workspaces)
         .where(eq(s.workspaces.id, ws))
@@ -1194,13 +1286,14 @@ export async function buildApp(
         409,
         "Esta operação exige um workspace de demonstração",
       );
-    db.delete(s.leads)
+    await db
+      .delete(s.leads)
       .where(and(eq(s.leads.workspaceId, ws), eq(s.leads.isDemo, true)))
       .run();
     return { ok: true };
   });
   const webRoot = resolve(root, "apps/web/dist");
-  if (existsSync(webRoot)) {
+  if (!process.env.VERCEL && existsSync(webRoot)) {
     await app.register(staticPlugin, { root: webRoot });
     app.setNotFoundHandler((request, reply) =>
       request.url.startsWith("/api/")
@@ -1208,7 +1301,7 @@ export async function buildApp(
         : reply.sendFile("index.html"),
     );
   }
-  if (options.worker !== false) queue.start();
+  if (options.worker !== false) await queue.start();
   app.addHook("onClose", async () => queue.stop());
   return { app, queue };
 }

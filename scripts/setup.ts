@@ -13,8 +13,8 @@ const { openDatabase, stamp } = await import("../apps/api/src/database/db.js");
 const { users, workspaces, members } =
   await import("../apps/api/src/database/schema.js");
 const { hashPassword } = await import("../apps/api/src/security/crypto.js");
-const { db, sqlite } = openDatabase();
-if (!db.select().from(users).get()) {
+const { db, sqlite } = await openDatabase();
+if (!(await db.select().from(users).get())) {
   const email = process.env.ADMIN_EMAIL || "admin@jotage.local";
   const password =
     process.env.ADMIN_PASSWORD || randomBytes(18).toString("base64url");
@@ -26,10 +26,11 @@ if (!db.select().from(users).get()) {
       passwordHash: await hashPassword(password),
     },
     workspace = { ...stamp(), name: "Jotage Dev", demo: false };
-  db.transaction((tx) => {
-    tx.insert(workspaces).values(workspace).run();
-    tx.insert(users).values(user).run();
-    tx.insert(members)
+  await db.transaction(async (tx) => {
+    await tx.insert(workspaces).values(workspace).run();
+    await tx.insert(users).values(user).run();
+    await tx
+      .insert(members)
       .values({
         ...stamp(),
         workspaceId: workspace.id,

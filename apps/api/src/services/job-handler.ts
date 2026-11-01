@@ -18,7 +18,7 @@ export function createHandler(
   return async (job, signal, progress) => {
     const ws = job.workspaceId;
     if (job.kind === "search") {
-      const record = db
+      const record = await db
         .select()
         .from(s.searches)
         .where(
@@ -26,24 +26,26 @@ export function createHandler(
         )
         .get();
       if (!record) throw new AppError(404, "Pesquisa não encontrada");
-      db.update(s.searches)
+      await db
+        .update(s.searches)
         .set({ status: "running" })
         .where(eq(s.searches.id, record.id))
         .run();
-      progress(10);
+      await progress(10);
       const found = await search.search(
         searchInput.parse(record.query),
         signal,
       );
       signal.throwIfAborted();
-      progress(65);
+      await progress(65);
       let duplicates = 0;
-      db.transaction((tx) => {
+      await db.transaction(async (tx) => {
         for (const item of found) {
           signal.throwIfAborted();
-          const saved = saveLead(tx, ws, item);
+          const saved = await saveLead(tx, ws, item);
           if (saved.duplicate) duplicates++;
-          tx.insert(s.results)
+          await tx
+            .insert(s.results)
             .values({
               ...stamp(),
               workspaceId: ws,
@@ -53,7 +55,8 @@ export function createHandler(
             .onConflictDoNothing()
             .run();
         }
-        tx.update(s.searches)
+        await tx
+          .update(s.searches)
           .set({
             status: "completed",
             total: found.length,
@@ -70,35 +73,38 @@ export function createHandler(
         attribution: "© OpenStreetMap contributors · ODbL",
       };
     }
-    const lead = getLead(db, ws, job.targetId);
+    const lead = await getLead(db, ws, job.targetId);
     if (job.kind === "audit") {
       const result = await auditor.audit(lead.website, signal);
       signal.throwIfAborted();
-      db.insert(s.audits)
+      await db
+        .insert(s.audits)
         .values({ ...stamp(), workspaceId: ws, leadId: lead.id, data: result })
         .run();
-      scoreLead(db, ws, lead.id, getSettings(db, ws).weights);
+      await scoreLead(db, ws, lead.id, (await getSettings(db, ws)).weights);
       return result;
     }
     if (job.kind === "analyze") {
       const audit =
-        db
-          .select()
-          .from(s.audits)
-          .where(
-            and(eq(s.audits.workspaceId, ws), eq(s.audits.leadId, lead.id)),
-          )
-          .orderBy(desc(s.audits.createdAt))
-          .get()?.data || null;
+        (
+          await db
+            .select()
+            .from(s.audits)
+            .where(
+              and(eq(s.audits.workspaceId, ws), eq(s.audits.leadId, lead.id)),
+            )
+            .orderBy(desc(s.audits.createdAt))
+            .get()
+        )?.data || null;
       const evidenceHash = digest(
         JSON.stringify({
           name: lead.name,
           category: lead.category,
           audit,
-          settings: getSettings(db, ws),
+          settings: await getSettings(db, ws),
         }),
       );
-      const cached = db
+      const cached = await db
         .select()
         .from(s.analyses)
         .where(
@@ -116,7 +122,8 @@ export function createHandler(
         signal,
       );
       signal.throwIfAborted();
-      db.insert(s.analyses)
+      await db
+        .insert(s.analyses)
         .values({
           ...stamp(),
           workspaceId: ws,

@@ -6,7 +6,6 @@ import { type DB, stamp } from "../database/db.js";
 import * as s from "../database/schema.js";
 import { AppError } from "../services/leads.js";
 import { getSettings, getApiKey } from "../services/settings.js";
-
 export interface AIProvider {
   analyzeBusiness(
     workspaceId: string,
@@ -21,7 +20,11 @@ export interface AIProvider {
     signal?: AbortSignal,
   ): Promise<string>;
 }
-export type Evidence = { name: string; category: string; audit: Audit | null };
+export type Evidence = {
+  name: string;
+  category: string;
+  audit: Audit | null;
+};
 export class GeminiProvider implements AIProvider {
   constructor(
     private db: DB,
@@ -35,8 +38,8 @@ export class GeminiProvider implements AIProvider {
     instruction: string,
     signal?: AbortSignal,
   ): Promise<T> {
-    const settings = getSettings(this.db, workspaceId),
-      key = getApiKey(this.db, workspaceId);
+    const settings = await getSettings(this.db, workspaceId),
+      key = await getApiKey(this.db, workspaceId);
     if (!key || !settings.model)
       throw new AppError(
         409,
@@ -56,23 +59,25 @@ export class GeminiProvider implements AIProvider {
       status: "reserved",
       tokens: 0,
     };
-    this.db.transaction((tx) => {
-      const calls = tx
-        .select()
-        .from(s.usage)
-        .where(
-          and(
-            eq(s.usage.workspaceId, workspaceId),
-            gte(s.usage.createdAt, dayStart),
-          ),
-        )
-        .all().length;
+    await this.db.transaction(async (tx) => {
+      const calls = (
+        await tx
+          .select()
+          .from(s.usage)
+          .where(
+            and(
+              eq(s.usage.workspaceId, workspaceId),
+              gte(s.usage.createdAt, dayStart),
+            ),
+          )
+          .all()
+      ).length;
       if (calls >= settings.dailyLimit)
         throw new AppError(
           429,
           "Limite diário de IA atingido. A tarefa pode ser retomada em outro dia.",
         );
-      tx.insert(s.usage).values(record).run();
+      await tx.insert(s.usage).values(record).run();
     });
     try {
       const client = this.createClient(key);
@@ -88,7 +93,7 @@ export class GeminiProvider implements AIProvider {
         },
       });
       const parsed = schema.parse(JSON.parse(result.text || "{}"));
-      this.db
+      await this.db
         .update(s.usage)
         .set({
           status: "completed",
@@ -99,7 +104,7 @@ export class GeminiProvider implements AIProvider {
         .run();
       return parsed;
     } catch (error) {
-      this.db
+      await this.db
         .update(s.usage)
         .set({ status: "failed", updatedAt: new Date().toISOString() })
         .where(eq(s.usage.id, record.id))

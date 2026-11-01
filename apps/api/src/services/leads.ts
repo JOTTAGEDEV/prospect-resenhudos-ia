@@ -10,7 +10,6 @@ import {
 import { type DB, stamp } from "../database/db.js";
 import * as s from "../database/schema.js";
 import { digest } from "../security/crypto.js";
-
 export class AppError extends Error {
   constructor(
     public statusCode: number,
@@ -55,8 +54,8 @@ export function contacts(lead: {
     lead.email && `email:${lead.email.toLowerCase()}`,
   ].filter((v): v is string => !!v);
 }
-export function getLead(db: DB, workspaceId: string, id: string) {
-  const lead = db
+export async function getLead(db: DB, workspaceId: string, id: string) {
+  const lead = await db
     .select()
     .from(s.leads)
     .where(and(eq(s.leads.workspaceId, workspaceId), eq(s.leads.id, id)))
@@ -64,29 +63,34 @@ export function getLead(db: DB, workspaceId: string, id: string) {
   if (!lead) throw new AppError(404, "Empresa não encontrada");
   return lead;
 }
-export function assertContactAllowed(
+export async function assertContactAllowed(
   db: DB,
   workspaceId: string,
   lead: s.DbLead,
 ) {
   if (
     lead.stage === "Não contatar" ||
-    contacts(lead).some((contact) =>
-      db
-        .select()
-        .from(s.suppression)
-        .where(
-          and(
-            eq(s.suppression.workspaceId, workspaceId),
-            eq(s.suppression.contact, contact),
-          ),
-        )
-        .get(),
-    )
+    (
+      await Promise.all(
+        contacts(lead).map(
+          async (contact) =>
+            await db
+              .select()
+              .from(s.suppression)
+              .where(
+                and(
+                  eq(s.suppression.workspaceId, workspaceId),
+                  eq(s.suppression.contact, contact),
+                ),
+              )
+              .get(),
+        ),
+      )
+    ).some(Boolean)
   )
     throw new AppError(409, "Contato bloqueado pela lista de supressão");
 }
-export function saveLead(
+export async function saveLead(
   db: DB,
   workspaceId: string,
   input: LeadInput,
@@ -100,7 +104,7 @@ export function saveLead(
     : digest(
         `${name}|${normalizeName(data.address || "")}|${normalizeName(data.city || "")}|${phone || ""}|${domain(data.website) || ""}`,
       );
-  let existing = db
+  let existing = await db
     .select()
     .from(s.leads)
     .where(
@@ -109,22 +113,23 @@ export function saveLead(
     .get();
   // Domain alone cannot establish identity: chains and franchises share websites.
   if (!existing && (phone || data.address))
-    existing = db
-      .select()
-      .from(s.leads)
-      .where(eq(s.leads.workspaceId, workspaceId))
-      .all()
-      .find(
-        (l) =>
-          normalizeName(l.name) === name &&
-          normalizeName(l.city || "") === normalizeName(data.city || "") &&
-          ((phone && phone === l.phone) ||
-            (data.address &&
-              normalizeName(data.address) === normalizeName(l.address || "") &&
-              domain(data.website) === domain(l.website))),
-      );
+    existing = (
+      await db
+        .select()
+        .from(s.leads)
+        .where(eq(s.leads.workspaceId, workspaceId))
+        .all()
+    ).find(
+      (l) =>
+        normalizeName(l.name) === name &&
+        normalizeName(l.city || "") === normalizeName(data.city || "") &&
+        ((phone && phone === l.phone) ||
+          (data.address &&
+            normalizeName(data.address) === normalizeName(l.address || "") &&
+            domain(data.website) === domain(l.website))),
+    );
   if (existing) {
-    const known = db
+    const known = await db
       .select()
       .from(s.sources)
       .where(
@@ -142,7 +147,8 @@ export function saveLead(
           source.url === (data.sourceUrl ?? null),
       )
     ) {
-      db.insert(s.sources)
+      await db
+        .insert(s.sources)
         .values({
           ...stamp(),
           workspaceId,
@@ -164,9 +170,10 @@ export function saveLead(
     identity,
     stage: "Novo lead",
   };
-  const saved = db.transaction((tx) => {
-    const row = tx.insert(s.leads).values(lead).returning().get();
-    tx.insert(s.sources)
+  const saved = await db.transaction(async (tx) => {
+    const row = await tx.insert(s.leads).values(lead).returning().get();
+    await tx
+      .insert(s.sources)
       .values({
         ...stamp(),
         workspaceId,
@@ -274,25 +281,27 @@ export function calculateScore(
     calculatedAt: new Date().toISOString(),
   };
 }
-export function scoreLead(
+export async function scoreLead(
   db: DB,
   workspaceId: string,
   id: string,
   weights: Weights,
 ) {
-  const lead = getLead(db, workspaceId, id);
-  const audit = db
+  const lead = await getLead(db, workspaceId, id);
+  const audit = await db
     .select()
     .from(s.audits)
     .where(and(eq(s.audits.workspaceId, workspaceId), eq(s.audits.leadId, id)))
     .orderBy(desc(s.audits.createdAt))
     .get();
   const result = calculateScore(lead, audit?.data, weights);
-  db.transaction((tx) => {
-    tx.insert(s.scores)
+  await db.transaction(async (tx) => {
+    await tx
+      .insert(s.scores)
       .values({ ...stamp(), workspaceId, leadId: id, data: result })
       .run();
-    tx.update(s.leads)
+    await tx
+      .update(s.leads)
       .set({
         score: result.value,
         scoreDetail: result,

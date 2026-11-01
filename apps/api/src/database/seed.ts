@@ -2,15 +2,19 @@ import { eq } from "drizzle-orm";
 import { openDatabase, stamp } from "./db.js";
 import { users, workspaces, members } from "./schema.js";
 import { saveLead } from "../services/leads.js";
-const { db, sqlite } = openDatabase();
-const admin = db.select().from(users).get();
+const { db, sqlite } = await openDatabase();
+const admin = await db.select().from(users).get();
 if (!admin)
   throw new Error(
     "Crie o administrador com npm run admin:create antes do seed.",
   );
-let demo = db.select().from(workspaces).where(eq(workspaces.demo, true)).get();
+let demo = await db
+  .select()
+  .from(workspaces)
+  .where(eq(workspaces.demo, true))
+  .get();
 if (!demo) {
-  demo = db
+  demo = await db
     .insert(workspaces)
     .values({
       ...stamp(),
@@ -19,7 +23,8 @@ if (!demo) {
     })
     .returning()
     .get();
-  db.insert(members)
+  await db
+    .insert(members)
     .values({
       ...stamp(),
       workspaceId: demo.id,
@@ -33,7 +38,7 @@ for (const [name, category] of [
   ["Restaurante Exemplo Horizonte", "Restaurantes"],
   ["Estúdio Exemplo Órbita", "Serviços"],
 ])
-  saveLead(
+  await saveLead(
     db,
     demo.id,
     {
