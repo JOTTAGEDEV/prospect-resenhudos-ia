@@ -6,7 +6,7 @@ import {
   type Audit,
   type Score,
   type Weights,
-} from "@jotage/shared";
+} from "../../../../packages/shared/src/index.js";
 import { type DB, stamp } from "../database/db.js";
 import * as s from "../database/schema.js";
 import { digest } from "../security/crypto.js";

@@ -1,5 +1,5 @@
 import { and, eq, desc } from "drizzle-orm";
-import { searchInput } from "@jotage/shared";
+import { searchInput } from "../../../../packages/shared/src/index.js";
 import { type DB, stamp } from "../database/db.js";
 import * as s from "../database/schema.js";
 import { AppError, getLead, saveLead, scoreLead } from "./leads.js";

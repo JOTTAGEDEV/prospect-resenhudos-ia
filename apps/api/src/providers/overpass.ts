@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { SearchInput, LeadInput } from "@jotage/shared";
+import type { SearchInput, LeadInput } from "../../../../packages/shared/src/index.js";
 import { config } from "../config.js";
 import { AppError, normalizePhone } from "../services/leads.js";
 export interface BusinessSearchProvider {

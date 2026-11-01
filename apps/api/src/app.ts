@@ -18,10 +18,10 @@ import {
   settingsInput,
   stageSchema,
   stages,
-} from "@jotage/shared";
+} from "../../../packages/shared/src/index.js";
 import { type DB, stamp } from "./database/db.js";
 import * as s from "./database/schema.js";
-import { config, root } from "./config.js";
+import { config, root, allowedOrigins } from "./config.js";
 import { digest, verifyPassword, hashPassword } from "./security/crypto.js";
 import {
   AppError,
@@ -168,7 +168,7 @@ export async function buildApp(
     if (!request.url.startsWith("/api/")) return;
     reply.header("Cache-Control", "no-store");
     if (!["GET", "HEAD", "OPTIONS"].includes(request.method)) {
-      if (request.headers.origin && request.headers.origin !== config.origin)
+      if (request.headers.origin && !allowedOrigins.has(request.headers.origin))
         throw new AppError(403, "Origem não permitida");
       if (request.headers["x-requested-with"] !== "JotageProspect")
         throw new AppError(403, "Cabeçalho de proteção obrigatório");

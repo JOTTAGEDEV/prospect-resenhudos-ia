@@ -13,7 +13,7 @@ import type {
   Analysis,
   Score,
   Settings,
-} from "@jotage/shared";
+} from "../../../../packages/shared/src/index.js";
 
 const common = () => ({
   id: text("id").primaryKey(),

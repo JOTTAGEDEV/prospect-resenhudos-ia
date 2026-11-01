@@ -28,3 +28,13 @@ export const config = {
     process.env.OVERPASS_ENDPOINT ||
     "https://overpass.private.coffee/api/interpreter",
 };
+
+export const allowedOrigins = new Set(
+  [
+    config.origin,
+    process.env.APP_ORIGIN,
+    process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : undefined,
+  ].filter(Boolean),
+);

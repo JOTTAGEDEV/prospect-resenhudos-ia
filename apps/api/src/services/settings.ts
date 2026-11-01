@@ -1,5 +1,5 @@
 import { eq } from "drizzle-orm";
-import { defaultWeights, type Settings } from "@jotage/shared";
+import { defaultWeights, type Settings } from "../../../../packages/shared/src/index.js";
 import type { DB } from "../database/db.js";
 import { stamp } from "../database/db.js";
 import { settings } from "../database/schema.js";

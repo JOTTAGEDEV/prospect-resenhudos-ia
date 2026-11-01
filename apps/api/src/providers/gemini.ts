@@ -1,6 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
-import { analysisSchema, type Analysis, type Audit } from "@jotage/shared";
+import { analysisSchema, type Analysis, type Audit } from "../../../../packages/shared/src/index.js";
 import { and, eq, gte } from "drizzle-orm";
 import { type DB, stamp } from "../database/db.js";
 import * as s from "../database/schema.js";

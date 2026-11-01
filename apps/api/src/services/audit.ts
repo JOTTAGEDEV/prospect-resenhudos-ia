@@ -1,6 +1,6 @@
 import { load } from "cheerio";
 import robotsParser from "robots-parser";
-import type { Audit } from "@jotage/shared";
+import type { Audit } from "../../../../packages/shared/src/index.js";
 import { safeGet, type HttpResult } from "../security/http.js";
 import { AppError } from "./leads.js";
 
