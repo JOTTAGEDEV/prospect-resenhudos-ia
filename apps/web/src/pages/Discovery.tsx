@@ -61,7 +61,7 @@ export default function Discovery() {
             <div>
               <h2>Onde vamos procurar?</h2>
               <p className="helper">
-                Coordenadas manuais · consultas de até 5 km
+                Coordenadas manuais · consultas de até 50 km
               </p>
             </div>
             <MapPin size={20} className="muted" />
@@ -129,7 +129,7 @@ export default function Discovery() {
                   label="Raio de pesquisa"
                   value={radius}
                   onChange={setRadius}
-                  options={[1, 2, 3, 5].map((v) => ({
+                  options={[1, 2, 3, 5, 10, 20, 30, 50].map((v) => ({
                     value: String(v),
                     label: `${v} km`,
                   }))}

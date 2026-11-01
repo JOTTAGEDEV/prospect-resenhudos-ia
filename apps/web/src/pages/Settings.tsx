@@ -216,7 +216,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
               onChange={(v) => update("city", v)}
             />
             <TextField
-              label="Raio padrão em km (até 5)"
+              label="Raio padrão em km (até 50)"
               value={String(data.radiusKm)}
               onChange={(v) => update("radiusKm", Number(v))}
             />

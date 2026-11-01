@@ -61,7 +61,7 @@ export const searchInput = z
     state: z.string().length(2).default("SC"),
     latitude: z.number().min(-90).max(90).default(-27.645),
     longitude: z.number().min(-180).max(180).default(-48.669),
-    radiusKm: z.number().min(0.1).max(5).default(5),
+    radiusKm: z.number().min(0.1).max(50).default(5),
     category: z.enum(segments).default("Oficinas mecânicas"),
     limit: z.number().int().min(1).max(50).default(20),
   })
@@ -108,7 +108,7 @@ export const settingsInput = z
     city: z.string().min(2).max(100),
     latitude: z.number().min(-90).max(90),
     longitude: z.number().min(-180).max(180),
-    radiusKm: z.number().min(0.1).max(5),
+    radiusKm: z.number().min(0.1).max(50),
     weights: weightsSchema,
     apiKey: z.string().max(300).optional(),
     clearApiKey: z.boolean().optional(),
