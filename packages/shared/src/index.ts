@@ -163,3 +163,18 @@ export const defaultWeights: Weights = {
   quality: 10,
   signals: 10,
 };
+
+export const contactResearchSchema = z.object({
+  text: z.string().min(1).max(50000),
+  sources: z
+    .array(
+      z.object({
+        title: z.string().max(500),
+        url: z.url().refine((v) => /^https?:\/\//i.test(v)),
+      }),
+    )
+    .min(1)
+    .max(50),
+  searchSuggestions: z.string().max(100000).optional(),
+});
+export type ContactResearch = z.infer<typeof contactResearchSchema>;

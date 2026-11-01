@@ -139,3 +139,75 @@ describe("Gemini com SDK mockado", () => {
     ).rejects.toThrow("fonte não verificada");
   });
 });
+
+describe("Pesquisa de contatos com fontes", () => {
+  it("ativa Google Search, mantém referências e respeita a quota", async () => {
+    const generate = vi.fn().mockResolvedValue({
+      text: "Site oficial encontrado.",
+      usageMetadata: { totalTokenCount: 95 },
+      candidates: [
+        {
+          groundingMetadata: {
+            groundingChunks: [
+              { web: { uri: "https://example.com", title: "Empresa" } },
+            ],
+            groundingSupports: [
+              { segment: { endIndex: 24 }, groundingChunkIndices: [0] },
+            ],
+            searchEntryPoint: { renderedContent: "<div>Google</div>" },
+          },
+        },
+      ],
+    });
+    const result = await provider(generate).researchContacts(workspaceId, {
+      name: "Empresa",
+      category: "Hotéis",
+      city: "Palhoça",
+      audit: null,
+    });
+    expect(generate.mock.calls[0][0].config.tools).toEqual([
+      { googleSearch: {} },
+    ]);
+    expect(generate.mock.calls[0][0].config.responseMimeType).toBeUndefined();
+    expect(result.sources[0].url).toBe("https://example.com");
+    expect(result.searchSuggestions).toContain("Google");
+    expect((await database.db.select().from(usage).get())?.tokens).toBe(95);
+  });
+  it("rejeita contatos sem comprovação de pesquisa na web", async () => {
+    const generate = vi.fn().mockResolvedValue({ text: "Telefone imaginado" });
+    await expect(
+      provider(generate).researchContacts(workspaceId, {
+        name: "Empresa",
+        category: "Serviços",
+        audit: null,
+      }),
+    ).rejects.toThrow("fontes verificáveis");
+    expect((await database.db.select().from(usage).get())?.status).toBe(
+      "failed",
+    );
+  });
+  it("não publica links com protocolo executável", async () => {
+    const generate = vi
+      .fn()
+      .mockResolvedValue({
+        text: "Resultado",
+        candidates: [
+          {
+            groundingMetadata: {
+              groundingChunks: [{ web: { uri: "javascript:alert(1)" } }],
+              groundingSupports: [
+                { segment: { endIndex: 9 }, groundingChunkIndices: [0] },
+              ],
+            },
+          },
+        ],
+      });
+    await expect(
+      provider(generate).researchContacts(workspaceId, {
+        name: "Empresa",
+        category: "Serviços",
+        audit: null,
+      }),
+    ).rejects.toThrow("fontes verificáveis");
+  });
+});

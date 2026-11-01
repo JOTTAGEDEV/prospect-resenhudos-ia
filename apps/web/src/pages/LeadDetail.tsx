@@ -31,8 +31,10 @@ import {
   DialogDescription,
   DialogTrigger,
 } from "../components/ui/dialog";
+import { ContactResearchPanel } from "../components/ContactResearchPanel";
 import { Jobs } from "../components/Jobs";
 type Detail = {
+  research: unknown;
   lead: Lead;
   sources: {
     id: string;
@@ -137,6 +139,11 @@ export default function LeadDetail() {
           </AlertDescription>
         </Alert>
       )}
+      <ContactResearchPanel
+        leadId={id!}
+        result={data.data.research}
+        onEdit={() => setEditing(true)}
+      />
       <div className="grid-2">
         <div className="stack">
           <section className="panel">

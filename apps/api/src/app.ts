@@ -459,6 +459,22 @@ export async function buildApp(
         .where(and(eq(s.analyses.workspaceId, ws), eq(s.analyses.leadId, id)))
         .orderBy(desc(s.analyses.createdAt))
         .all(),
+      research:
+        (
+          await db
+            .select()
+            .from(s.jobs)
+            .where(
+              and(
+                eq(s.jobs.workspaceId, ws),
+                eq(s.jobs.targetId, id),
+                eq(s.jobs.kind, "research"),
+                eq(s.jobs.status, "completed"),
+              ),
+            )
+            .orderBy(desc(s.jobs.createdAt))
+            .get()
+        )?.result || null,
       activities: await db
         .select()
         .from(s.activities)
@@ -518,7 +534,7 @@ export async function buildApp(
       .run();
     return { ok: true };
   });
-  for (const kind of ["audit", "analyze"])
+  for (const kind of ["audit", "analyze", "research"])
     app.post(`/api/leads/:id/${kind}`, async (request) => {
       const id = idOf(request);
       await getLead(db, request.auth.workspaceId, id);

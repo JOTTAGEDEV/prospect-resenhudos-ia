@@ -93,7 +93,7 @@ export async function safeGet(
           );
         },
       );
-      req.setTimeout(10000, () =>
+      req.setTimeout(30000, () =>
         req.destroy(new Error("Tempo de resposta excedido")),
       );
       req.on("error", reject);

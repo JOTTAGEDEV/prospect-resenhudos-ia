@@ -3,6 +3,7 @@ import { eq, and, lt } from "drizzle-orm";
 import { z } from "zod";
 import { jobs } from "../apps/api/src/database/schema.js";
 import { getServer } from "../apps/api/src/serverless.js";
+import { WORKER_LEASE_SECONDS } from "../apps/api/src/config.js";
 const client = new QueueClient();
 export default client.handleNodeCallback(
   async (input: unknown) => {
@@ -15,7 +16,10 @@ export default client.handleNodeCallback(
         and(
           eq(jobs.id, id),
           eq(jobs.status, "running"),
-          lt(jobs.updatedAt, new Date(Date.now() - 120000).toISOString()),
+          lt(
+            jobs.updatedAt,
+            new Date(Date.now() - WORKER_LEASE_SECONDS * 1000).toISOString(),
+          ),
         ),
       )
       .run();
@@ -24,5 +28,8 @@ export default client.handleNodeCallback(
     if (job && ["pending", "running"].includes(job.status))
       throw new Error("Tarefa aguardando retentativa");
   },
-  { visibilityTimeoutSeconds: 120, retry: () => ({ afterSeconds: 60 }) },
+  {
+    visibilityTimeoutSeconds: WORKER_LEASE_SECONDS,
+    retry: () => ({ afterSeconds: 60 }),
+  },
 );

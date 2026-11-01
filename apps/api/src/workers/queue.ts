@@ -1,6 +1,7 @@
 import { and, eq, inArray, lte, asc } from "drizzle-orm";
 import { type DB, stamp } from "../database/db.js";
 import { jobs } from "../database/schema.js";
+import { TASK_TIMEOUT_MS } from "../config.js";
 import { AppError } from "../services/leads.js";
 export type Job = typeof jobs.$inferSelect;
 export type Handler = (
@@ -89,7 +90,7 @@ export class Queue {
       this.aborts.set(job.id, controller);
       const timeout = setTimeout(
         () => controller.abort(new Error("Tempo máximo da tarefa excedido")),
-        60000,
+        TASK_TIMEOUT_MS,
       );
       try {
         const result = await this.handler(

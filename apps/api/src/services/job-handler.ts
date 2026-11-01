@@ -74,6 +74,29 @@ export function createHandler(
       };
     }
     const lead = await getLead(db, ws, job.targetId);
+    if (job.kind === "research") {
+      if (!ai.researchContacts)
+        throw new AppError(
+          409,
+          "Pesquisa Gemini não disponível neste provedor.",
+        );
+      await progress(10);
+      const result = await ai.researchContacts(
+        ws,
+        {
+          name: lead.name,
+          category: lead.category,
+          city: lead.city,
+          state: lead.state,
+          address: lead.address,
+          website: lead.website,
+          audit: null,
+        },
+        signal,
+      );
+      signal.throwIfAborted();
+      return result;
+    }
     if (job.kind === "audit") {
       const result = await auditor.audit(lead.website, signal);
       signal.throwIfAborted();

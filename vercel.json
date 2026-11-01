@@ -47,7 +47,7 @@
   ],
   "functions": {
     "api/index.ts": {
-      "maxDuration": 120,
+      "maxDuration": 300,
       "includeFiles": "packages/shared/package.json"
     },
     "api/worker.ts": {
@@ -58,7 +58,7 @@
         }
       ],
       "includeFiles": "packages/shared/package.json",
-      "maxDuration": 120
+      "maxDuration": 300
     }
   }
 }

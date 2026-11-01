@@ -1,5 +1,8 @@
 import { z } from "zod";
-import type { SearchInput, LeadInput } from "../../../../packages/shared/src/index.js";
+import type {
+  SearchInput,
+  LeadInput,
+} from "../../../../packages/shared/src/index.js";
 import { config } from "../config.js";
 import { AppError, normalizePhone } from "../services/leads.js";
 export interface BusinessSearchProvider {
@@ -82,7 +85,7 @@ export function normalizeResults(
 export class OverpassProvider implements BusinessSearchProvider {
   constructor(private request: typeof fetch = fetch) {}
   async search(input: SearchInput, signal?: AbortSignal) {
-    const query = `[out:json][timeout:20][maxsize:16777216];nwr${tags[input.category]}(around:${Math.round(input.radiusKm * 1000)},${input.latitude},${input.longitude});out center ${input.limit};`;
+    const query = `[out:json][timeout:90][maxsize:16777216];nwr${tags[input.category]}(around:${Math.round(input.radiusKm * 1000)},${input.latitude},${input.longitude});out center ${input.limit};`;
     const response = await this.request(config.overpass, {
       method: "POST",
       body: new URLSearchParams({ data: query }),
@@ -91,7 +94,7 @@ export class OverpassProvider implements BusinessSearchProvider {
           "JotageProspectAI/0.1 (+https://github.com/JOTTAGEDEV/prospect-resenhudos-ia)",
       },
       signal: AbortSignal.any([
-        AbortSignal.timeout(30000),
+        AbortSignal.timeout(100000),
         ...(signal ? [signal] : []),
       ]),
     });
