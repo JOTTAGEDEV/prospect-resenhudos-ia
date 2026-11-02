@@ -57,11 +57,35 @@ export function geminiError(error: unknown): AppError {
         : "Quota do Gemini atingida (HTTP 429). Pode ser limite de requisições por minuto ou por dia, mesmo com tokens disponíveis. Confira os limites do modelo no Google AI Studio.",
     );
   }
-  if (code === 400)
+  if (code === 400) {
+    const diagnostic = typeof detail.message === "string" ? detail.message : "";
+    if (
+      /schema|constraint.*(?:states|branching)|nesting depth/i.test(diagnostic)
+    )
+      return new AppError(
+        400,
+        "Gemini rejeitou o esquema de resposta JSON (HTTP 400). O modelo pode limitar a complexidade da estrutura solicitada.",
+      );
+    if (/thinking[_ -]?(?:level|config|budget)/i.test(diagnostic))
+      return new AppError(
+        400,
+        "Gemini rejeitou a configuração de raciocínio para este modelo (HTTP 400). Confira os níveis de pensamento aceitos.",
+      );
+    if (/max[_ -]?output[_ -]?tokens/i.test(diagnostic))
+      return new AppError(
+        400,
+        "Gemini rejeitou o limite de tokens de saída (HTTP 400). Confira o máximo aceito por este modelo.",
+      );
+    if (/google[_ -]?(?:search|maps)|\btools?\b/i.test(diagnostic))
+      return new AppError(
+        400,
+        "Gemini rejeitou uma ferramenta de pesquisa para este modelo (HTTP 400). Confira a compatibilidade da ferramenta e do projeto.",
+      );
     return new AppError(
       400,
       "Gemini rejeitou os parâmetros ou a ferramenta para este modelo (HTTP 400). Selecione um modelo compatível com a operação.",
     );
+  }
   if (code === 404)
     return new AppError(
       409,

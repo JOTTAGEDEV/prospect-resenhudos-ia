@@ -259,6 +259,9 @@ it("Tavily pesquisa e Gemini 3.8 organiza sem ferramentas Google, usando teto di
   expect(request.config.tools).toBeUndefined();
   expect(request.config.toolConfig).toBeUndefined();
   expect(request.config.responseMimeType).toBe("application/json");
+  expect(request.config.responseJsonSchema).toBeUndefined();
+  expect(request.config.systemInstruction).toContain('"sourceId"');
+  expect(request.config.systemInstruction).toContain('"businesses"');
   expect(request.config.thinkingConfig.thinkingLevel).toBe("HIGH");
   expect(request.config.maxOutputTokens).toBe(32768);
   expect(JSON.parse(request.contents).documents).toEqual(documents);
