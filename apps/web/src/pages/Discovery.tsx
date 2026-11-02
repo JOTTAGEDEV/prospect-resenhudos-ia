@@ -56,7 +56,7 @@ export default function Discovery() {
       <PageHead
         eyebrow="DESCOBERTA LOCAL"
         title="Encontre sua próxima oportunidade."
-        description="Uma região, um segmento e informações públicas para iniciar sua pesquisa."
+        description="O Gemini cruza Google Search e Google Maps para localizar empresas, sites e contatos comerciais com fontes."
       />
       <div className="grid-2">
         <section className="panel">
@@ -64,7 +64,7 @@ export default function Discovery() {
             <div>
               <h2>Onde vamos procurar?</h2>
               <p className="helper">
-                Coordenadas manuais · consultas de até 50 km
+                Pesquisa com Gemini · região de até 50 km
               </p>
             </div>
             <MapPin size={20} className="muted" />
@@ -139,12 +139,12 @@ export default function Discovery() {
                   }))}
                 />
                 <SelectField
-                  label="Limite de resultados"
+                  label="Limite de candidatos"
                   value={limit}
                   onChange={setLimit}
                   options={[10, 20, 50].map((v) => ({
                     value: String(v),
-                    label: `Até ${v} empresas`,
+                    label: `Até ${v} empresas para pesquisar`,
                   }))}
                 />
                 <div className="full">
@@ -166,9 +166,9 @@ export default function Discovery() {
                 <span>
                   Verificar sites antes de enviar para revisão
                   <span className="helper block mt-1">
-                    Descarta empresas com site próprio. A rodada salva o
-                    progresso e pode levar até 10 minutos. Usa sua configuração
-                    Gemini; redes sociais não contam como site.
+                    Separa empresas com site próprio e verificações
+                    inconclusivas. A rodada salva o progresso e pode levar até
+                    10 minutos. Redes sociais não contam como site.
                   </span>
                 </span>
               </label>
@@ -179,19 +179,20 @@ export default function Discovery() {
             </FieldGroup>
           </form>
           <p className="helper mt-4">
-            O centro geográfico determina a área. Cidade e UF identificam a
-            pesquisa, sem geocodificação automática.
+            Cidade, UF e coordenadas orientam a busca. Sem coordenadas
+            confirmadas da empresa, a distância é aproximada. Confira o endereço
+            e as fontes antes de fazer contato.
           </p>
         </section>
         <section className="stack">
           <Alert>
             <Info />
-            <AlertTitle>Dados reais. Cobertura variável.</AlertTitle>
+            <AlertTitle>Mais fontes, com evidências para conferir</AlertTitle>
             <AlertDescription>
-              OpenStreetMap pode não ter todos os contatos ou empresas da
-              região. Ausência na fonte não comprova inexistência. Pesquisas sem
-              verificação usam cache por 24 horas. Com o filtro ativado, cada
-              nova rodada verifica os sites novamente e consome quota de IA.
+              A IA busca site oficial, endereço e canais comerciais públicos,
+              comparando nome e localidade. Não encontrar um site não comprova
+              que ele não exista. O limite de candidatos é um máximo; a
+              quantidade final depende das fontes e da verificação.
             </AlertDescription>
           </Alert>
           <div className="panel">
@@ -202,16 +203,11 @@ export default function Discovery() {
             <Jobs />
           </div>
           <p className="helper">
-            ©{" "}
-            <a
-              href="https://www.openstreetmap.org/copyright"
-              target="_blank"
-              rel="noreferrer"
-            >
-              OpenStreetMap contributors
-            </a>{" "}
-            · ODbL. Uso local e pontual. Antes de uso comercial contínuo,
-            configure uma instância própria ou um provedor autorizado.
+            Esta pesquisa usa Google Search e{" "}
+            <span translate="no">Google Maps</span>, conforme o suporte do
+            modelo. Tokens por minuto, chamadas de IA e buscas têm quotas
+            diferentes. Cada nova rodada pode consumir sua quota; a chave e o
+            modelo são os salvos em Configurações.
           </p>
         </section>
       </div>

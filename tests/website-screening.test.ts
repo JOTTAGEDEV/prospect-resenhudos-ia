@@ -141,12 +141,12 @@ it("não transforma quota ou indisponibilidade em ausência de site e evita repe
   await tick(job.id);
   await tick(job.id);
   const final = await tick(job.id);
-  expect(final.status).toBe("completed");
+  expect(final.status).toBe("paused");
   expect(research).toHaveBeenCalledTimes(1);
   expect(
     websiteScreeningSchema
       .parse(final.result)
-      .candidates.every((c) => c.decision === "inconclusive"),
+      .candidates.every((c) => c.decision === "pending"),
   ).toBe(true);
   expect(await database.db.select().from(s.leads).all()).toHaveLength(0);
 });
@@ -189,7 +189,7 @@ it("não descarta por site inacessível ou resposta ambígua, nem retoma uma tar
   ).toBe("inconclusive");
   await queue.cancel(workspaceId, job.id);
   expect((await tick(job.id)).status).toBe("cancelled");
-  expect(research).not.toHaveBeenCalled();
+  expect(research).toHaveBeenCalledTimes(1);
   expect(await database.db.select().from(s.leads).all()).toHaveLength(0);
 });
 
@@ -205,4 +205,96 @@ it("exclui redes sociais e diretórios da definição de site próprio", () => {
   expect(businessWebsite("https://empresa.com.br")).toBe(
     "https://empresa.com.br/",
   );
+});
+
+it("descobre com Gemini sem depender do OpenStreetMap e salva contatos sustentados pela pesquisa", async () => {
+  const discoverBusinesses = vi.fn().mockResolvedValue({
+    leads: [
+      leadInput.parse({
+        name: "Empresa Google",
+        city: "Palhoça",
+        source: "Google Search",
+      }),
+    ],
+    report: {
+      text: "Descoberta com fontes públicas.",
+      sources: [
+        { title: "Google Maps", url: "https://maps.google.com/empresa" },
+      ],
+    },
+  });
+  queue = new Queue(
+    database.db,
+    createHandler(
+      database.db,
+      undefined,
+      { audit },
+      {
+        discoverBusinesses,
+        researchContacts: research,
+        analyzeBusiness: vi.fn(),
+        generateOutreach: vi.fn(),
+      },
+    ),
+  );
+  research.mockResolvedValue({
+    text: "Empresa correta; site próprio não localizado nesta pesquisa.",
+    sources: [{ title: "Fonte pública", url: "https://example.org/empresa" }],
+    company: {
+      websiteStatus: "not_found",
+      phone: "+5548999990000",
+      email: "contato@example.org",
+      address: "Rua Um, 20",
+      city: "Palhoça",
+      state: "SC",
+      mapsUrl: "https://maps.google.com/empresa",
+    },
+  });
+  const job = await start([]);
+  await tick(job.id);
+  await tick(job.id);
+  const final = await tick(job.id);
+  expect(final.status).toBe("completed");
+  expect(discover).not.toHaveBeenCalled();
+  expect(discoverBusinesses).toHaveBeenCalledTimes(1);
+  const lead = (await database.db.select().from(s.leads).all())[0];
+  expect(lead.phone).toBe("5548999990000");
+  expect(lead.email).toBe("contato@example.org");
+  expect(lead.notes).toContain("Google Maps");
+  expect(
+    websiteScreeningSchema.parse(final.result).discoveryReport?.sources,
+  ).toHaveLength(1);
+});
+
+it("pesquisa novamente um site antigo e descarta quando novas fontes confirmam o site oficial", async () => {
+  audit.mockResolvedValue({
+    status: "unavailable",
+    url: "https://antigo.example",
+    checkedAt: new Date().toISOString(),
+    evidence: [],
+    limitations: ["Robots indisponível"],
+  });
+  research.mockResolvedValue({
+    text: "Site oficial confirmado em fontes públicas.",
+    sources: [{ title: "Fonte", url: "https://atual.example/" }],
+    company: {
+      websiteStatus: "has_website",
+      website: "https://atual.example/",
+      city: "Palhoça",
+    },
+  });
+  const job = await start([
+    leadInput.parse({
+      name: "Empresa Google",
+      website: "https://antigo.example",
+    }),
+  ]);
+  await tick(job.id);
+  await tick(job.id);
+  const final = await tick(job.id);
+  expect(
+    websiteScreeningSchema.parse(final.result).candidates[0].decision,
+  ).toBe("has_website");
+  expect(research).toHaveBeenCalledTimes(1);
+  expect(await database.db.select().from(s.leads).all()).toHaveLength(0);
 });

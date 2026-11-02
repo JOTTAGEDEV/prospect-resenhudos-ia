@@ -10,9 +10,10 @@ import type { WebsiteAuditService } from "./audit.js";
 import type { AIProvider } from "../providers/gemini.js";
 import { digest } from "../security/crypto.js";
 import { screenSearch } from "./website-screening.js";
+import { discoverBusinesses } from "./discovery-source.js";
 export function createHandler(
   db: DB,
-  search: BusinessSearchProvider,
+  search: BusinessSearchProvider | undefined,
   auditor: WebsiteAuditService,
   ai: AIProvider,
 ): Handler {
@@ -36,14 +37,19 @@ export function createHandler(
       if (input.excludeWithWebsite)
         return screenSearch(db, job, input, search, ai, auditor, signal);
       await progress(10);
-      const found = await search.search(
-        searchInput.parse(record.query),
-        signal,
-      );
+      const discovery = await discoverBusinesses(ws, input, ai, signal, search);
+      const found = discovery.leads;
       signal.throwIfAborted();
       await progress(65);
       let duplicates = 0;
       await db.transaction(async (tx) => {
+        const current = await tx
+          .select()
+          .from(s.jobs)
+          .where(eq(s.jobs.id, job.id))
+          .get();
+        if (current?.status !== "running")
+          throw new AppError(409, "Pesquisa interrompida.");
         for (const item of found) {
           signal.throwIfAborted();
           const saved = await saveLead(tx, ws, item);
@@ -71,10 +77,14 @@ export function createHandler(
           .run();
       });
       return {
+        kind: "discovery",
+        discoveryReport: discovery.report,
         total: found.length,
         duplicates,
         saved: found.length - duplicates,
-        attribution: "© OpenStreetMap contributors · ODbL",
+        attribution: discovery.report
+          ? "Google Search · Google Maps"
+          : "Provedor de teste",
       };
     }
     const lead = await getLead(db, ws, job.targetId);
@@ -104,10 +114,24 @@ export function createHandler(
     if (job.kind === "audit") {
       const result = await auditor.audit(lead.website, signal);
       signal.throwIfAborted();
-      await db
-        .insert(s.audits)
-        .values({ ...stamp(), workspaceId: ws, leadId: lead.id, data: result })
-        .run();
+      await db.transaction(async (tx) => {
+        const current = await tx
+          .select()
+          .from(s.jobs)
+          .where(eq(s.jobs.id, job.id))
+          .get();
+        if (current?.status !== "running")
+          throw new AppError(409, "Tarefa interrompida.");
+        await tx
+          .insert(s.audits)
+          .values({
+            ...stamp(),
+            workspaceId: ws,
+            leadId: lead.id,
+            data: result,
+          })
+          .run();
+      });
       await scoreLead(db, ws, lead.id, (await getSettings(db, ws)).weights);
       return result;
     }
@@ -149,16 +173,25 @@ export function createHandler(
         signal,
       );
       signal.throwIfAborted();
-      await db
-        .insert(s.analyses)
-        .values({
-          ...stamp(),
-          workspaceId: ws,
-          leadId: lead.id,
-          data,
-          evidenceHash,
-        })
-        .run();
+      await db.transaction(async (tx) => {
+        const current = await tx
+          .select()
+          .from(s.jobs)
+          .where(eq(s.jobs.id, job.id))
+          .get();
+        if (current?.status !== "running")
+          throw new AppError(409, "Tarefa interrompida.");
+        await tx
+          .insert(s.analyses)
+          .values({
+            ...stamp(),
+            workspaceId: ws,
+            leadId: lead.id,
+            data,
+            evidenceHash,
+          })
+          .run();
+      });
       return data;
     }
     throw new AppError(400, "Tipo de tarefa desconhecido");

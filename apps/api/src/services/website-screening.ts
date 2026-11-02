@@ -3,6 +3,7 @@ import {
   websiteScreeningSchema as screeningSchema,
   type SearchInput,
   type LeadInput,
+  type ContactResearch,
 } from "../../../../packages/shared/src/index.js";
 import { type DB, stamp } from "../database/db.js";
 import * as s from "../database/schema.js";
@@ -13,6 +14,7 @@ import type { AIProvider } from "../providers/gemini.js";
 import type { WebsiteAuditService } from "./audit.js";
 import { AppError, saveLead } from "./leads.js";
 import { GEMINI_TIMEOUT_MS } from "../config.js";
+import { discoverBusinesses } from "./discovery-source.js";
 
 export function businessWebsite(
   value: string | null | undefined,
@@ -31,6 +33,8 @@ export function businessWebsite(
       "whatsapp.com",
       "linktr.ee",
       "google.com",
+      "google.com.br",
+      "g.page",
       "maps.app.goo.gl",
       "booking.com",
       "tripadvisor.com",
@@ -55,7 +59,7 @@ export async function screenSearch(
   db: DB,
   job: Job,
   input: SearchInput,
-  search: BusinessSearchProvider,
+  search: BusinessSearchProvider | undefined,
   ai: AIProvider,
   auditor: WebsiteAuditService,
   signal: AbortSignal,
@@ -67,12 +71,20 @@ export async function screenSearch(
         "Progresso da verificação inválido. Inicie uma nova pesquisa.",
       );
     const deadline = Date.now() + 600000;
-    const candidates = await search.search(input, signal);
+    const discovery = await discoverBusinesses(
+      job.workspaceId,
+      input,
+      ai,
+      signal,
+      search,
+    );
+    const candidates = discovery.leads;
     signal.throwIfAborted();
     throw new JobContinuation(
       {
         kind: "website-screening",
         deadline,
+        discoveryReport: discovery.report,
         candidates: candidates.map((lead) => ({
           lead,
           decision: "pending",
@@ -98,11 +110,23 @@ export async function screenSearch(
       const known = businessWebsite(candidate.lead.website);
       let site = known;
       let decision = "";
-      if (!site) {
+      let report: ContactResearch | undefined;
+      let verifiedDirectly = false;
+      if (known) {
+        const audit = await auditor.audit(known, stageSignal);
+        verifiedDirectly = !!(
+          audit.httpStatus &&
+          audit.httpStatus >= 200 &&
+          audit.httpStatus < 300 &&
+          businessWebsite(audit.url)
+        );
+      }
+      // A blocked or outdated URL is researched again instead of ending the check.
+      if (!verifiedDirectly) {
         if (!ai.researchContacts)
-          throw new Error("Pesquisa Gemini indisponível.");
+          throw new AppError(409, "Pesquisa Gemini indisponível.");
         usedResearch = true;
-        const report = await ai.researchContacts(
+        report = await ai.researchContacts(
           job.workspaceId,
           {
             name: candidate.lead.name,
@@ -119,40 +143,75 @@ export async function screenSearch(
         if ((report.searchSuggestions?.length || 0) > 20000)
           throw new AppError(
             502,
-            "A pesquisa retornou uma resposta grande demais para exibir com segurança. Tente uma nova rodada.",
+            "A pesquisa retornou uma resposta grande demais para exibir. Tente uma nova rodada.",
           );
         candidate.sources = report.sources;
         candidate.searchSuggestions = report.searchSuggestions;
         candidate.reason = report.text.slice(0, 8000);
-        decision = report.text
-          .split(/\r?\n/)[0]
-          .trim()
-          .replace(/(?:\s*\[\d+\])+$/, "");
-        site = businessWebsite(
-          /^SITE_CONFIRMADO:\s*(https?:\/\/\S+)$/i.exec(decision)?.[1],
-        );
+        const company = report.company;
+        if (company) {
+          for (const field of [
+            "phone",
+            "email",
+            "address",
+            "city",
+            "state",
+          ] as const)
+            if (company[field]) candidate.lead[field] = company[field];
+          if (company.mapsUrl)
+            candidate.lead.notes = (
+              `Google Maps: ${company.mapsUrl}\n` + candidate.lead.notes
+            ).slice(0, 5000);
+          site = businessWebsite(company.website);
+          decision =
+            company.websiteStatus === "not_found" ? "SITE_NAO_LOCALIZADO" : "";
+        } else {
+          // Compatibility with reports created before structured enrichment.
+          decision = report.text
+            .split(/\r?\n/)[0]
+            .trim()
+            .replace(/(?:\s*\[\d+\])+$/, "");
+          site = businessWebsite(
+            /^SITE_CONFIRMADO:\s*(https?:\/\/\S+)$/i.exec(decision)?.[1],
+          );
+        }
       }
-      if (site) {
+      signal.throwIfAborted();
+      if (verifiedDirectly && known) {
+        candidate.decision = "has_website";
+        candidate.reason = `Site encontrado e acessível: ${known}.`;
+        candidate.sources = [{ title: "Site verificado", url: known }];
+      } else if (site) {
         const audit = await auditor.audit(site, stageSignal);
         signal.throwIfAborted();
-        if (
-          (audit.status === "completed" || audit.status === "partial") &&
+        const reachable = !!(
           audit.httpStatus &&
           audit.httpStatus >= 200 &&
           audit.httpStatus < 300 &&
           businessWebsite(audit.url)
-        ) {
+        );
+        const grounded =
+          report?.company?.websiteStatus === "has_website" &&
+          report.sources.length > 0;
+        if (reachable || grounded) {
           candidate.decision = "has_website";
+          candidate.lead.website = site;
           candidate.reason =
-            `Site encontrado e acessível: ${site}. ` + candidate.reason;
-          candidate.sources.push({ title: "Site verificado", url: site });
+            (reachable
+              ? `Site encontrado e acessível: ${site}. `
+              : `Site confirmado nas fontes da pesquisa; acesso direto indisponível: ${site}. `) +
+            candidate.reason;
+          if (reachable)
+            candidate.sources = [
+              ...candidate.sources.slice(0, 50),
+              { title: "Site verificado", url: site },
+            ];
         } else {
           candidate.decision = "inconclusive";
           candidate.reason =
-            `Há um possível site, mas não foi possível confirmar o acesso: ${site}. ` +
-            candidate.reason;
+            `Não foi possível confirmar o site: ${site}. ` + candidate.reason;
         }
-      } else if (decision === "SITE_NAO_LOCALIZADO") {
+      } else if (decision === "SITE_NAO_LOCALIZADO" && !known) {
         candidate.decision = "not_found";
       } else {
         candidate.decision = "inconclusive";
@@ -161,25 +220,22 @@ export async function screenSearch(
       }
     } catch (error) {
       signal.throwIfAborted();
+      if (
+        error instanceof AppError &&
+        [400, 409, 429].includes(error.statusCode)
+      )
+        throw error;
+      const transient =
+        error instanceof AppError &&
+        error.statusCode === 502 &&
+        /temporariamente|comunicar|conex|prazo|HTTP 50[0234]/i.test(
+          error.message,
+        );
+      if (transient && job.attempts < 3 && Date.now() < checkpoint.deadline)
+        throw error;
       candidate.decision = "inconclusive";
       candidate.reason =
         error instanceof Error ? error.message : "Falha na verificação.";
-      // An unavailable AI/quota must not trigger dozens of identical paid calls.
-      if (
-        error &&
-        typeof error === "object" &&
-        "statusCode" in error &&
-        [400, 409, 429, 502].includes(Number(error.statusCode))
-      ) {
-        for (const item of checkpoint.candidates)
-          if (
-            item.decision === "pending" &&
-            !businessWebsite(item.lead.website)
-          ) {
-            item.decision = "inconclusive";
-            item.reason = `Verificação interrompida: ${candidate.reason}`;
-          }
-      }
     }
     const done = checkpoint.candidates.filter(
       (item) => item.decision !== "pending",

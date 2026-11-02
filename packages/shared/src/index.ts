@@ -165,6 +165,16 @@ export const defaultWeights: Weights = {
   signals: 10,
 };
 
+export const researchedCompanySchema = z.object({
+  websiteStatus: z.enum(["has_website", "not_found", "inconclusive"]),
+  website: leadInput.shape.website,
+  phone: leadInput.shape.phone,
+  email: leadInput.shape.email,
+  address: leadInput.shape.address,
+  city: leadInput.shape.city,
+  state: leadInput.shape.state,
+  mapsUrl: leadInput.shape.website,
+});
 export const contactResearchSchema = z.object({
   text: z.string().min(1).max(50000),
   sources: z
@@ -172,17 +182,20 @@ export const contactResearchSchema = z.object({
       z.object({
         title: z.string().max(500),
         url: z.url().refine((v) => /^https?:\/\//i.test(v)),
+        provider: z.enum(["Google Maps", "Google Search"]).optional(),
       }),
     )
     .min(1)
     .max(50),
   searchSuggestions: z.string().max(100000).optional(),
+  company: researchedCompanySchema.optional(),
 });
 export type ContactResearch = z.infer<typeof contactResearchSchema>;
 
 export const websiteScreeningSchema = z.object({
   kind: z.literal("website-screening"),
   deadline: z.number(),
+  discoveryReport: contactResearchSchema.optional(),
   candidates: z.array(
     z.object({
       lead: leadInput,

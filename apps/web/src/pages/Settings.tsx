@@ -184,14 +184,24 @@ function SettingsForm({ initial }: { initial: Settings }) {
               value={String(data.dailyLimit)}
               onChange={(v) => update("dailyLimit", Number(v))}
             />
+            {data.model === "gemini-3.8-flash" && (
+              <p className="helper">
+                Pesquisa aprofundada: raciocínio alto e até 32.768 tokens de
+                saída por chamada de pesquisa. O modelo usa o necessário, sem
+                gastar todo o limite obrigatoriamente. Google Search e Google
+                Maps ajudam a localizar e conferir empresas e contatos.
+              </p>
+            )}
             <Alert>
               <KeyRound />
-              <AlertTitle>A integração é opcional</AlertTitle>
+              <AlertTitle>Pesquisa conectada à sua conta Gemini</AlertTitle>
               <AlertDescription>
-                Sem Gemini, descoberta, auditoria técnica, CRM e templates
-                manuais continuam disponíveis. A chave fica criptografada no
-                backend. Confira o modelo, a quota e o tratamento de dados da
-                camada gratuita no Google AI Studio antes de enviar evidências.
+                A descoberta e a pesquisa de contatos precisam da integração.
+                Auditoria técnica, CRM e templates manuais continuam disponíveis
+                sem ela. A chave fica criptografada no backend. TPM é o limite
+                de tokens por minuto, não um saldo: chamadas e buscas do Google
+                têm quotas próprias. Confira os limites da sua conta no Google
+                AI Studio.
               </AlertDescription>
             </Alert>
             <Button type="submit" disabled={save.isPending}>

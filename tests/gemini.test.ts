@@ -143,8 +143,14 @@ describe("Gemini com SDK mockado", () => {
 
 describe("Pesquisa de contatos com fontes", () => {
   it("ativa Google Search, mantém referências e respeita a quota", async () => {
+    const text = JSON.stringify({
+      name: "Empresa",
+      city: "Palhoça",
+      websiteStatus: "has_website",
+      website: "https://example.com",
+    });
     const generate = vi.fn().mockResolvedValue({
-      text: "Site oficial encontrado.",
+      text,
       usageMetadata: { totalTokenCount: 95 },
       candidates: [
         {
@@ -153,7 +159,10 @@ describe("Pesquisa de contatos com fontes", () => {
               { web: { uri: "https://example.com", title: "Empresa" } },
             ],
             groundingSupports: [
-              { segment: { endIndex: 24 }, groundingChunkIndices: [0] },
+              {
+                segment: { endIndex: text.length },
+                groundingChunkIndices: [0],
+              },
             ],
             searchEntryPoint: { renderedContent: "<div>Google</div>" },
           },
@@ -171,6 +180,7 @@ describe("Pesquisa de contatos com fontes", () => {
     ]);
     expect(generate.mock.calls[0][0].config.responseMimeType).toBeUndefined();
     expect(result.sources[0].url).toBe("https://example.com");
+    expect(result.company?.website).toBe("https://example.com");
     expect(result.searchSuggestions).toContain("Google");
     expect((await database.db.select().from(usage).get())?.tokens).toBe(95);
   });

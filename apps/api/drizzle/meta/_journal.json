@@ -8,6 +8,13 @@
       "when": 1793410129973,
       "tag": "0000_lucky_toad_men",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1793561108372,
+      "tag": "0001_account_profile",
+      "breakpoints": true
     }
   ]
 }

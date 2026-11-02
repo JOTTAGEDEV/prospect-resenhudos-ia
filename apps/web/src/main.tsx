@@ -46,6 +46,8 @@ const Activities = lazy(() => import("./pages/Activities"));
 const SettingsPage = lazy(() => import("./pages/Settings"));
 type Me = {
   email: string;
+  username?: string;
+  displayName?: string;
   workspaceId: string;
   workspaces: { id: string; name: string; demo: boolean }[];
 };
@@ -72,9 +74,7 @@ function Login() {
       <section className="login-story">
         <Brand />
         <div>
-          <div className="eyebrow mb-5">
-            INTELIGÊNCIA COMERCIAL · JOTAGE DEV
-          </div>
+          <div className="eyebrow mb-5">INTELIGÊNCIA COMERCIAL</div>
           <h1>
             Boas conexões
             <br />
@@ -128,7 +128,7 @@ function Login() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  placeholder="admin123"
+                  placeholder="Seu usuário"
                 />
               </Field>
               <Field>
@@ -205,6 +205,15 @@ function Layout() {
     pending =
       tasks.data?.filter((t) => !t.done && Date.parse(t.dueAt) <= Date.now())
         .length || 0;
+  const displayName =
+    me.data!.displayName || me.data!.username || "Minha conta";
+  const initials = displayName
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
   return (
     <div className={`shell ${collapsed ? "collapsed" : ""}`}>
       <a className="skip-link" href="#main">
@@ -238,11 +247,13 @@ function Layout() {
         </nav>
         <div className="sidebar-foot">
           <div className="flex items-center gap-3">
-            <span className="avatar">JD</span>
+            <span className="avatar" aria-hidden="true">
+              {initials}
+            </span>
             {!collapsed && (
               <div>
-                <strong className="text-xs">Jotage Dev</strong>
-                <div className="helper">Administrador</div>
+                <strong className="text-xs">{displayName}</strong>
+                <div className="helper">{selected?.name || "Workspace"}</div>
               </div>
             )}
           </div>
@@ -314,8 +325,8 @@ function Layout() {
               <Bell />
               {pending > 0 && <span>{pending}</span>}
             </Button>
-            <span className="avatar" title={me.data!.email}>
-              JD
+            <span className="avatar" title={displayName}>
+              {initials}
             </span>
           </div>
         </header>

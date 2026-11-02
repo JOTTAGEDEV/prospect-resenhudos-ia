@@ -32,6 +32,8 @@ const workspace = () =>
 export const users = sqliteTable("users", {
   ...common(),
   email: text("email").notNull().unique(),
+  username: text("username").unique(),
+  displayName: text("display_name"),
   passwordHash: text("password_hash").notNull(),
 });
 export const members = sqliteTable(

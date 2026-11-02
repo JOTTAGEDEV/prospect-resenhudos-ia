@@ -35,10 +35,12 @@ import {
 import { getSettings, updateSettings, getApiKey } from "./services/settings.js";
 import { Queue } from "./workers/queue.js";
 import { createHandler } from "./services/job-handler.js";
+import type { BusinessSearchProvider } from "./providers/overpass.js";
 import {
-  OverpassProvider,
-  type BusinessSearchProvider,
-} from "./providers/overpass.js";
+  findLoginUser,
+  publicAccount,
+  registerAccountRoutes,
+} from "./services/account.js";
 import { WebsiteAuditor, type WebsiteAuditService } from "./services/audit.js";
 import { GeminiProvider, type AIProvider } from "./providers/gemini.js";
 type Auth = {
@@ -107,7 +109,7 @@ export async function buildApp(
     db,
     createHandler(
       db,
-      options.search || new OverpassProvider(),
+      options.search,
       options.auditor || new WebsiteAuditor(),
       ai,
     ),
@@ -212,6 +214,7 @@ export async function buildApp(
     };
   });
   app.get("/api/health", () => ({ status: "ok", version: "0.1.0" }));
+  registerAccountRoutes(app, db, queue);
   app.post(
     "/api/auth/login",
     { config: { rateLimit: { max: 5, timeWindow: "1 minute" } } },
@@ -229,16 +232,7 @@ export async function buildApp(
         )
         .parse(request.body);
       const login = (input.username || input.email || "").toLowerCase();
-      const user = await db
-        .select()
-        .from(s.users)
-        .where(
-          eq(
-            s.users.email,
-            login === "admin123" ? "admin@jotage.local" : login,
-          ),
-        )
-        .get();
+      const user = await findLoginUser(db, login);
       const valid = await verifyPassword(
         input.password,
         user?.passwordHash || dummyHash,
@@ -337,6 +331,7 @@ export async function buildApp(
   );
   app.get("/api/auth/me", async (request) => ({
     ...request.auth,
+    ...(await publicAccount(db, request.auth.userId)),
     workspaces: await db
       .select({
         id: s.workspaces.id,
@@ -652,10 +647,7 @@ export async function buildApp(
       .orderBy(desc(s.searches.createdAt))
       .get();
     if (last && Date.now() - Date.parse(last.createdAt) < 60000)
-      throw new AppError(
-        429,
-        "Aguarde um minuto entre pesquisas na fonte pública.",
-      );
+      throw new AppError(429, "Aguarde um minuto entre rodadas de pesquisa.");
     const search = await db
       .insert(s.searches)
       .values({

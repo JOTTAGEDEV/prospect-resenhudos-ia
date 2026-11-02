@@ -7,10 +7,12 @@ Erros: `{ "error": "mensagem", "details": [{"field":"name","message":"..."}] }`.
 | Método e caminho | Contrato resumido |
 |---|---|
 | GET /health | Público: status e versão |
-| POST /auth/login | `{email,password}`; cookie de sessão de 8 horas |
+| POST /auth/login | `{username,password}` (email legado também aceito); cookie de sessão de 8 horas |
 | POST /auth/logout | Revoga sessão atual |
 | POST /auth/password | `{currentPassword,newPassword}`; valida senha atual e revoga outras sessões |
-| GET /auth/me | Usuário e workspaces autorizados |
+| GET /auth/me | Usuário, username, displayName e workspaces autorizados |
+| PATCH /account/profile | Admin: `{username,displayName,company}`; preserva senha e chave Gemini |
+| POST /account/reset | Admin: `{confirmation:"APAGAR LEADS E HISTORICOS"}`; limpa dados comerciais do workspace, preserva conta/configuração/quota/supressão |
 | POST /auth/workspace | `{workspaceId}`; exige associação |
 | GET /leads | `q,category,stage,city,source,from,to,minScore,sort,page,pageSize`; retorna `{items,total,page,pageSize}` |
 | POST /leads | `{name,category?,city?,state?,address?,website?,phone?,email?,latitude?,longitude?,notes?,tags?,source?,sourceId?,sourceUrl?}`; retorna `{lead,duplicate}` |
@@ -22,7 +24,7 @@ Erros: `{ "error": "mensagem", "details": [{"field":"name","message":"..."}] }`.
 | POST /leads/:id/analyze | Enfileira Gemini; retorna job |
 | POST /leads/:id/score | Recalcula fatores e histórico |
 | GET /pipeline | Mesmos filtros dos leads; etapas e cards |
-| POST /searches | `{city,state,latitude,longitude,radiusKm,category,limit}`; todos têm defaults; cache 24h |
+| POST /searches | `{city,state,latitude,longitude,radiusKm,category,limit,excludeWithWebsite?}`; Gemini com Google Search/Maps; cache 24h apenas sem verificação |
 | GET /searches | Até 100 pesquisas recentes |
 | GET /searches/:id | Pesquisa, resultados e jobs |
 | POST /searches/:id/cancel | Cancela job e pesquisa |

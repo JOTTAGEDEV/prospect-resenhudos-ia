@@ -1,4 +1,5 @@
-import { websiteScreeningSchema } from "@jotage/shared";
+import { contactResearchSchema, websiteScreeningSchema } from "@jotage/shared";
+import { ResearchReport, ResearchSources } from "./ResearchReport";
 
 const labels = {
   pending: "Aguardando verificação",
@@ -8,54 +9,72 @@ const labels = {
 };
 
 export function SearchScreening({ result }: { result: unknown }) {
+  const discovery = contactResearchSchema.safeParse(
+    result && typeof result === "object" && "discoveryReport" in result
+      ? result.discoveryReport
+      : undefined,
+  );
   const parsed = websiteScreeningSchema.safeParse(result);
-  if (!parsed.success) return null;
-  const { candidates } = parsed.data;
+  if (!parsed.success && !discovery.success) return null;
+  const candidates = parsed.success ? parsed.data.candidates : [];
   const count = (decision: string) =>
     candidates.filter((item) => item.decision === decision).length;
   return (
-    <section className="mb-6 space-y-3" aria-label="Verificação de sites">
-      <h3>Verificação de sites</h3>
-      <p className="helper">
-        {count("has_website")} com site · {count("not_found")} para revisar ·{" "}
-        {count("inconclusive")} inconclusivas · {count("pending")} aguardando
-      </p>
-      <p className="helper">
-        Só entram nos resultados as empresas pesquisadas cujo site não foi
-        localizado. Isso não garante que não tenham site. As demais ficam
-        registradas abaixo, sem apagar dados do CRM.
-      </p>
-      {candidates.map((item, index) => (
-        <details key={index} className="rounded-md border p-3">
+    <section className="mb-6 space-y-3" aria-label="Pesquisa e verificação">
+      {discovery.success && (
+        <details className="rounded-md border p-3">
           <summary className="cursor-pointer text-sm font-medium">
-            {item.lead.name} — {labels[item.decision]}
+            Pesquisa inicial — informações e fontes
           </summary>
-          <p className="mt-3 whitespace-pre-wrap break-words text-sm">
-            {item.reason || "A pesquisa continua em segundo plano."}
-          </p>
-          <ol className="mt-3 space-y-2">
-            {item.sources.map((source, i) => (
-              <li key={`${i}-${source.url}`} className="break-words text-sm">
-                <a href={source.url} target="_blank" rel="noreferrer">
-                  [{i + 1}] {source.title} ↗
-                </a>
-              </li>
-            ))}
-          </ol>
-          {item.searchSuggestions && (
-            <iframe
-              title={`Sugestões Google: ${item.lead.name}`}
-              className="w-full h-40 border-0"
-              sandbox="allow-popups allow-popups-to-escape-sandbox"
-              referrerPolicy="no-referrer"
-              srcDoc={
-                "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src 'none'; style-src 'unsafe-inline'; img-src https: data:; base-uri 'none'; form-action 'none'\">" +
-                item.searchSuggestions
-              }
-            />
-          )}
+          <div className="mt-4">
+            <ResearchReport report={discovery.data} />
+          </div>
         </details>
-      ))}
+      )}
+      {parsed.success && (
+        <>
+          <h3>Verificação de sites</h3>
+          <p className="helper">
+            {count("has_website")} com site · {count("not_found")} para revisar
+            · {count("inconclusive")} inconclusivas · {count("pending")}{" "}
+            aguardando
+          </p>
+          <p className="helper">
+            Só entram nos resultados as empresas pesquisadas cujo site não foi
+            localizado. Isso não garante que não tenham site. As demais ficam
+            registradas abaixo, sem apagar dados do CRM.
+          </p>
+          {candidates.map((item, index) => (
+            <details key={index} className="rounded-md border p-3">
+              <summary className="cursor-pointer text-sm font-medium">
+                {item.lead.name} — {labels[item.decision]}
+              </summary>
+              <p className="mt-3 whitespace-pre-wrap break-words text-sm">
+                {item.reason || "A pesquisa continua em segundo plano."}
+              </p>
+              <p className="helper mt-3">
+                {[item.lead.address, item.lead.city, item.lead.state]
+                  .filter(Boolean)
+                  .join(" · ") || "Localidade não confirmada"}
+              </p>
+              {(item.lead.phone || item.lead.email) && (
+                <p className="mt-2 text-sm break-words">
+                  {[item.lead.phone, item.lead.email]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              )}
+              <div className="mt-3">
+                <ResearchSources
+                  sources={item.sources}
+                  searchSuggestions={item.searchSuggestions}
+                  title={`Sugestões Google: ${item.lead.name}`}
+                />
+              </div>
+            </details>
+          ))}
+        </>
+      )}
     </section>
   );
 }

@@ -53,7 +53,7 @@ Altere `APP_ORIGIN=http://127.0.0.1:3001` no `.env` e execute `npm start`. Abra 
 ## Fluxo de uso
 
 1. Configure seus serviços em **Configurações**.
-2. Em **Descobrir empresas**, confirme latitude/longitude, raio até 5 km e segmento. Clique em buscar. O centro geográfico define a área; o nome da cidade não é geocodificado.
+2. Em **Descobrir empresas**, confirme a cidade, UF, latitude/longitude, raio até 50 km e segmento. O Gemini pesquisa com Google Search e Google Maps; distâncias sem coordenadas confirmadas ficam sujeitas a revisão.
 3. Selecione os resultados no histórico. Empresas encontradas são persistidas com origem e data; campos desconhecidos ficam vazios.
 4. Abra uma empresa e clique em **Auditar site**. Veja evidências e limitações.
 5. Solicite **Analisar com Gemini**, se a integração estiver configurada. Sem ela, use auditoria, pontuação heurística e templates manuais.
@@ -63,21 +63,23 @@ Altere `APP_ORIGIN=http://127.0.0.1:3001` no `.env` e execute `npm start`. Abra 
 
 ## Gemini e custos
 
-Crie uma chave no [Google AI Studio](https://aistudio.google.com/api-keys), sem habilitar faturamento automaticamente. Consulte [modelos](https://ai.google.dev/gemini-api/docs/models), [preços](https://ai.google.dev/gemini-api/docs/pricing) e [limites](https://ai.google.dev/gemini-api/docs/rate-limits) da sua conta. Disponibilidade gratuita e quota variam: **nenhum identificador de modelo é presumido por padrão**.
+Crie uma chave no [Google AI Studio](https://aistudio.google.com/api-keys), sem habilitar faturamento automaticamente. Consulte [modelos](https://ai.google.dev/gemini-api/docs/models), [preços](https://ai.google.dev/gemini-api/docs/pricing) e [limites](https://ai.google.dev/gemini-api/docs/rate-limits) da sua conta. Disponibilidade gratuita e quota variam: o padrão é `gemini-3.8-flash`, sujeito à disponibilidade para sua chave.
 
 Preencha chave e modelo em Configurações ou `GEMINI_API_KEY`/`GEMINI_MODEL` no `.env`. Chave cadastrada no painel é criptografada com AES-256-GCM no backend e nunca retornada ao navegador. O teste de conexão consome uma chamada. Falhas também entram no teto local diário, calculado no fuso America/Sao_Paulo.
 
 Análises usam [saída JSON estruturada](https://ai.google.dev/gemini-api/docs/structured-output) e validação Zod. Dados recebidos de sites são não confiáveis; a IA não recebe ferramentas de execução. Recomendação gerada por IA continua sujeita à revisão humana, mesmo com validação estrutural.
 
-## Fonte OpenStreetMap
+## Descoberta com Google Search e Google Maps
 
-A descoberta ativa por padrão a opção **Verificar sites antes de enviar para revisão** (`excludeWithWebsite: true` na API). A rodada pesquisa cada empresa com Gemini + Google Search quando necessário e confere o acesso ao site encontrado. Empresas com site próprio ficam fora dos resultados; perfis sociais e diretórios não contam como site próprio. Apenas empresas pesquisadas cujo site não foi localizado entram para revisão, sem afirmar inexistência. Falhas de quota, acesso e evidência ficam como inconclusivas. Registros anteriores do CRM não são apagados.
+A descoberta usa Gemini com as ferramentas oficiais Google Search e Google Maps, independentemente do OpenStreetMap. Configure uma chave e um modelo compatível; Gemini 3.8 Flash é o padrão. Pesquisas e enriquecimento pedem raciocínio alto nos modelos Gemini 3 e até 32.768 tokens de saída por chamada. Esse é um teto, não consumo obrigatório. A quota de tokens por minuto não substitui as quotas e eventual cobrança das ferramentas do Google.
 
-O progresso de cada empresa fica persistido no banco entre execuções do worker. A verificação tem uma janela de dez minutos, com etapas de até 270 segundos e margem antes do limite de 300 segundos da função Vercel. O tempo de espera da fila conta para essa janela; pendências ficam inconclusivas ao encerrá-la. Chamadas de pesquisa são espaçadas em pelo menos quinze segundos. Quotas e indisponibilidade do provedor continuam aplicáveis. Rodadas com verificação não reutilizam o cache de 24 horas, permitindo tentar novamente após uma falha do provedor; cada nova rodada pode consumir quota.
+Nome, localidade, site, telefone e email são aceitos apenas com evidência de grounding retornada pelo provedor. Resultados exibem as fontes e a atribuição Google Maps. Quando não há coordenadas verificáveis, a pertinência à região é textual e o raio é aproximado; a interface informa essa limitação.
 
-© [OpenStreetMap contributors](https://www.openstreetmap.org/copyright), ODbL. Overpass consulta uma região pequena e um segmento por vez, sem Nominatim, com timeout, limite de resposta, intervalo entre pesquisas e cache de 24 horas.
+A opção **Verificar sites antes de enviar para revisão** (`excludeWithWebsite: true`) fica ativada por padrão. Empresas com site próprio confirmado saem da rodada; perfis sociais e diretórios não contam como site próprio. Um URL antigo ou bloqueado é pesquisado novamente. Apenas empresas cujo site não foi localizado após a pesquisa entram para revisão, sem garantir inexistência. Contatos comprovados são preenchidos no cadastro. Evidências insuficientes ficam inconclusivas; quota pausa a tarefa e falhas transitórias podem ser tentadas novamente.
 
-O endpoint padrão é [Overpass by Private.coffee](https://overpass.private.coffee/), cujo operador declara permitir projetos comerciais e exige consultas responsáveis, atribuição e identificação da aplicação. Mantemos limites locais conservadores. A instância overpass-api.de tem [orientações diferentes](https://dev.overpass-api.de/overpass-doc/en/preface/commons.html) para uso contínuo. Configure `OVERPASS_ENDPOINT` conforme o provedor autorizado; não há rotação automática de servidores para contornar quotas. As tentativas ao vivo nesta entrega atingiram timeout; nenhuma pesquisa real foi apresentada como concluída. Importação manual/CSV funciona independentemente da fonte. Não há scraping de Google Maps ou redes sociais.
+O progresso fica persistido entre execuções. A verificação tem uma janela de dez minutos, com etapas de até 270 segundos e margem antes dos 300 segundos da função Vercel. A espera da fila conta para essa janela; pendências ficam inconclusivas ao encerrá-la. Chamadas de pesquisa são espaçadas em quinze segundos. Rodadas com verificação não reutilizam o cache de 24 horas. Novas rodadas podem consumir quota.
+
+Referências: [Google Maps grounding](https://ai.google.dev/gemini-api/docs/generate-content/maps-grounding), [Gemini 3.8 Flash](https://ai.google.dev/gemini-api/docs/models/gemini-3.8-flash). O adaptador Overpass permanece apenas para compatibilidade e testes por injeção explícita; não é a fonte padrão do SaaS.
 
 ## Testes
 
