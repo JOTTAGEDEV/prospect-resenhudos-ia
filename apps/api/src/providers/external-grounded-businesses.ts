@@ -72,6 +72,13 @@ const normalized = (value: string) =>
 const contains = (text: string, value: string) =>
   !!normalized(value) && normalized(text).includes(normalized(value));
 const whitespace = (text: string) => text.replace(/\s+/g, " ").trim();
+const localityQuote = (text: string) =>
+  whitespace(
+    text
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase(),
+  );
 
 function ownWebsite(value: string | null) {
   if (!value) return null;
@@ -153,7 +160,15 @@ function checkedCompany(
     const text = whitespace(
       `${document.title}\n${document.content}\n${document.url}`,
     );
-    if (!text.includes(quote)) return null;
+    // Local names can appear with or without accents/capitalization. Preserve
+    // punctuation and digits, and keep contact/URL excerpts exact so another
+    // business's differently cased URL cannot be attributed through a directory.
+    if (
+      kind
+        ? !text.includes(quote)
+        : !localityQuote(text).includes(localityQuote(quote))
+    )
+      return null;
     // Directory pages can contain several companies. Require the cited snippet
     // itself to identify this company unless the page title already identifies it.
     if (

@@ -107,6 +107,7 @@ describe("OpenRouter gratuito para pesquisa com Tavily", () => {
       documents,
     );
     expect(router.mock.calls[0][0].system).toContain("UNTRUSTED DATA");
+    expect(search.mock.calls[0][2]).toBe(6);
     expect(router.mock.calls[0][0].system).toContain(
       "Never wrap websiteStatus in a citation",
     );
@@ -157,6 +158,8 @@ describe("OpenRouter gratuito para pesquisa com Tavily", () => {
     });
     expect(search).toHaveBeenCalledTimes(2);
     expect(search.mock.calls[1][1]).toBe("Imobiliária Aurora Palhoça SC");
+    expect(search.mock.calls[0][2]).toBe(6);
+    expect(search.mock.calls[1][2]).toBe(6);
     expect(report.company?.websiteStatus).toBe("has_website");
     expect(report.company?.phone).toBe("(48) 3222-3333");
     expect(router).toHaveBeenCalledTimes(1);

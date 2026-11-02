@@ -173,6 +173,10 @@ export class GeminiProvider implements AIProvider {
           : externalBusinessSchema;
       const searchInput = input as SearchInput;
       const evidenceInput = input as Evidence;
+      const resultLimit =
+        researchMode === "discovery"
+          ? Math.min(20, Math.max(5, searchInput.limit * 2))
+          : 6;
       const searchKey = external
         ? await getSearchApiKey(this.db, workspaceId)
         : "";
@@ -182,7 +186,7 @@ export class GeminiProvider implements AIProvider {
             researchMode === "discovery"
               ? `${searchInput.category} em ${searchInput.city} ${searchInput.state}`
               : `"${evidenceInput.name}" ${evidenceInput.city || ""} ${evidenceInput.state || ""} site oficial contato telefone email`,
-            20,
+            resultLimit,
             signal,
           )
         : [];
@@ -194,7 +198,7 @@ export class GeminiProvider implements AIProvider {
           researchMode === "discovery"
             ? `${searchInput.category} ${searchInput.city} ${searchInput.state} empresas`
             : `${evidenceInput.name} ${evidenceInput.city || ""} ${evidenceInput.state || ""}`,
-          20,
+          resultLimit,
           signal,
         );
       if (external && !documents.length)

@@ -28,7 +28,7 @@
 
 ## Verificações executadas
 
-- [x] TypeScript, ESLint, **152 testes Vitest** e builds web/API passaram. As integrações Tavily/OpenRouter são cobertas por transporte, validação de fontes, chaves isoladas, cotas, teste de pesquisa sem busca e ausência de redirecionamento pago.
+- [x] TypeScript, ESLint, **154 testes Vitest** e builds web/API passaram. As integrações Tavily/OpenRouter são cobertas por transporte, validação de fontes, chaves isoladas, cotas, teste de pesquisa sem busca e ausência de redirecionamento pago.
 - [x] `npm run test:e2e`: fluxo integrado Chromium passou, com banco e servidor exclusivos de teste.
 - [x] E2E: login → descoberta mockada → auditoria mockada → IA mockada → mensagem → aprovação → pipeline → reload → cadastro manual → configurações.
 - [x] E2E: salvar chave Tavily fictícia, recarregar sem expor o segredo, preservar com campo vazio e remover explicitamente.
@@ -43,7 +43,7 @@
 
 ## Dependências externas não confirmadas
 
-- [x] OpenRouter ao vivo: teste de conexão respondeu em 6,6 segundos. Uma descoberta real terminou com uma empresa, telefone, email e endereço apoiados numa fonte pública. A empresa ficou inconclusiva na checagem de site porque a consulta individual Tavily voltou vazia, e não foi importada como lead aprovado. A consulta individual agora também pode ampliar a pesquisa uma vez quando não encontra fontes.
+- [x] OpenRouter ao vivo: teste de conexão respondeu em 6,6 segundos. Uma rodada real em 50 km encontrou três empresas com dados de contato apoiados em fontes; uma foi salva para revisão após o site não ser localizado, e duas ficaram inconclusivas e não foram importadas. O modelo gratuito que respondeu foi `nvidia/nemotron-3.5-super-vl:free`.
 
 - [ ] Pesquisa Tavily + Gemini ao vivo completa: chave Tavily cadastrada e fontes retornadas. O 3.1 respondeu, mas a primeira resposta não comprovou identidade/localidade suficientes; o 3.8 retornou HTTP 503. A pesquisa solicita conteúdo completo das páginas e JSON por instrução, com contrato e citações validados no backend. Falhas de evidência informam contagens de rejeição sem expor dados pessoais.
 - [x] Disponibilidade Google investigada: a chave recusou a geração do Gemini 2.5 com 404; as ferramentas Search/Maps do 3.8 não estão incluídas na camada gratuita. Não atribuímos essa recusa ao esgotamento das 20 chamadas diárias.

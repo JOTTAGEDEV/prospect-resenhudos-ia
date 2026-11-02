@@ -59,6 +59,48 @@ const report = (
 ) => externalContactReport(JSON.stringify(value), docs, expected);
 
 describe("evidências externas sem grounding Google inventado", () => {
+  it("aceita variação de acento e caixa na localidade sem normalizar URLs de outra empresa", () => {
+    const original = content.replaceAll("Palhoça", "Palhoca");
+    const raw = business();
+    raw.city = cite(
+      "Palhoça",
+      original.toLowerCase().replaceAll("palhoca", "palhoça"),
+    );
+    expect(
+      report(raw, [{ ...documents[0], content: original }]).company?.city,
+    ).toBe("Palhoça");
+    const urlDocs = [
+      {
+        ...documents[0],
+        content:
+          original +
+          " Oficina Aurora site https://aurora.example/foo. Oficina Norte site https://aurora.example/FOO.",
+      },
+    ];
+    const urlResult = report(
+      {
+        ...business(),
+        website: cite(
+          "https://aurora.example/FOO",
+          "Oficina Aurora site https://aurora.example/FOO.",
+        ),
+      },
+      urlDocs,
+    );
+    expect(urlResult.company?.website).toBeNull();
+  });
+  it("não converte dígitos compatíveis ao procurar o trecho de um endereço", () => {
+    const original = content.replace("123", "①");
+    const raw = {
+      ...business(),
+      name: cite("Oficina Aurora", original),
+      city: cite("Palhoça", original),
+      address: cite("Rua Central, 1", original.replace("①", "1")),
+    };
+    expect(
+      report(raw, [{ ...documents[0], content: original }]).company?.address,
+    ).toBeNull();
+  });
   it("extrai identidade, endereço, contatos e coordenadas a partir de trechos reais", () => {
     const result = externalDiscovery(
       JSON.stringify({ businesses: [business()] }),
