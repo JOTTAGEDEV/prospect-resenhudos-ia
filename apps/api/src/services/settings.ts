@@ -18,6 +18,7 @@ export const defaults: Settings = {
   researchModel: process.env.GEMINI_RESEARCH_MODEL || "",
   researchProvider: "gemini",
   openrouterModel: "openrouter/free",
+  groqModel: "openai/gpt-oss-120b",
   searchProvider: "gemini",
   dailyLimit: Number(process.env.MAX_AI_REQUESTS_PER_DAY || 20),
   city: "Palhoça",
@@ -39,6 +40,9 @@ export async function getSettings(db: DB, workspaceId: string) {
     clearTavilyApiKey: _clearTavilyApiKey,
     openrouterApiKey: _openrouterApiKey,
     clearOpenrouterApiKey: _clearOpenrouterApiKey,
+    groqApiKey: _groqApiKey,
+    clearGroqApiKey: _clearGroqApiKey,
+    groqConfigured: _groqConfigured,
     ...data
   } = row?.data || {};
   return {
@@ -49,6 +53,7 @@ export async function getSettings(db: DB, workspaceId: string) {
     openrouterConfigured: !!(
       row?.encryptedOpenRouterKey || process.env.OPENROUTER_API_KEY
     ),
+    groqConfigured: !!(row?.encryptedGroqKey || process.env.GROQ_API_KEY),
   };
 }
 export async function getApiKey(db: DB, workspaceId: string) {
@@ -86,6 +91,9 @@ export async function updateSettings(
     openrouterApiKey,
     clearOpenrouterApiKey,
     openrouterConfigured: _openrouterConfigured,
+    groqApiKey,
+    clearGroqApiKey,
+    groqConfigured: _groqConfigured,
     ...data
   } = input;
   const row = await db
@@ -113,16 +121,24 @@ export async function updateSettings(
       data.researchProvider ??
       row?.data.researchProvider ??
       defaults.researchProvider,
+    researchModel:
+      data.researchModel ?? row?.data.researchModel ?? defaults.researchModel,
     openrouterModel:
       data.openrouterModel ??
       row?.data.openrouterModel ??
       defaults.openrouterModel,
+    groqModel: data.groqModel ?? row?.data.groqModel ?? defaults.groqModel,
   };
   const encryptedOpenRouterKey = clearOpenrouterApiKey
     ? null
     : openrouterApiKey?.trim()
       ? encrypt(openrouterApiKey.trim(), config.secret)
       : row?.encryptedOpenRouterKey;
+  const encryptedGroqKey = clearGroqApiKey
+    ? null
+    : groqApiKey?.trim()
+      ? encrypt(groqApiKey.trim(), config.secret)
+      : row?.encryptedGroqKey;
   if (row)
     await db
       .update(settings)
@@ -131,6 +147,7 @@ export async function updateSettings(
         encryptedKey,
         encryptedSearchKey,
         encryptedOpenRouterKey,
+        encryptedGroqKey,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(settings.workspaceId, workspaceId))
@@ -145,6 +162,7 @@ export async function updateSettings(
         encryptedKey,
         encryptedSearchKey,
         encryptedOpenRouterKey,
+        encryptedGroqKey,
       })
       .run();
   return await getSettings(db, workspaceId);
@@ -159,4 +177,15 @@ export async function getOpenRouterApiKey(db: DB, workspaceId: string) {
   return row?.encryptedOpenRouterKey
     ? decrypt(row.encryptedOpenRouterKey, config.secret)
     : process.env.OPENROUTER_API_KEY || "";
+}
+
+export async function getGroqApiKey(db: DB, workspaceId: string) {
+  const row = await db
+    .select()
+    .from(settings)
+    .where(eq(settings.workspaceId, workspaceId))
+    .get();
+  return row?.encryptedGroqKey
+    ? decrypt(row.encryptedGroqKey, config.secret)
+    : process.env.GROQ_API_KEY || "";
 }

@@ -106,7 +106,21 @@ export const settingsInput = z
     tone: z.enum(["Direto", "Consultivo", "Profissional"]),
     model: z.string().max(100),
     researchModel: z.string().max(100).optional(),
-    researchProvider: z.enum(["gemini", "openrouter"]).optional(),
+    researchProvider: z.enum(["gemini", "openrouter", "groq"]).optional(),
+    groqModel: z
+      .string()
+      .min(1)
+      .max(180)
+      .regex(/^[a-zA-Z0-9][a-zA-Z0-9._:/-]*$/)
+      .refine(
+        (value) =>
+          !value.includes("://") &&
+          !["groq/compound", "groq/compound-mini"].includes(
+            value.toLowerCase(),
+          ),
+        "Informe um modelo de texto, sem URL nem ferramentas de busca embutidas.",
+      )
+      .optional(),
     openrouterModel: z
       .string()
       .trim()
@@ -132,6 +146,8 @@ export const settingsInput = z
     clearTavilyApiKey: z.boolean().optional(),
     openrouterApiKey: z.string().max(512).optional(),
     clearOpenrouterApiKey: z.boolean().optional(),
+    groqApiKey: z.string().max(512).optional(),
+    clearGroqApiKey: z.boolean().optional(),
   })
   .strict();
 export type SearchInput = z.infer<typeof searchInput>;
@@ -142,6 +158,7 @@ export type Settings = z.infer<typeof settingsInput> & {
   aiConfigured?: boolean;
   searchConfigured?: boolean;
   openrouterConfigured?: boolean;
+  groqConfigured?: boolean;
 };
 export type Lead = LeadInput & {
   id: string;

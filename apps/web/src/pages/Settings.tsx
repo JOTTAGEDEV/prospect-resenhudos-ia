@@ -63,6 +63,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
     [clearTavilyKey, setClearTavilyKey] = useState(false),
     [openrouterKey, setOpenrouterKey] = useState(""),
     [clearOpenrouterKey, setClearOpenrouterKey] = useState(false),
+    [groqKey, setGroqKey] = useState(""),
+    [clearGroqKey, setClearGroqKey] = useState(false),
     [theme, setTheme] = useState(
       localStorage.getItem("jotage-theme-v1") || "dark",
     );
@@ -73,6 +75,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
     setClearTavilyKey(false);
     setOpenrouterKey("");
     setClearOpenrouterKey(false);
+    setGroqKey("");
+    setClearGroqKey(false);
     toast.success("Configurações salvas");
   });
   const action = useAction(() => toast.success("Operação concluída"));
@@ -82,7 +86,19 @@ function SettingsForm({ initial }: { initial: Settings }) {
   const update = <K extends keyof Settings>(field: K, value: Settings[K]) =>
     setData((d) => ({ ...d, [field]: value }));
   const usesOpenRouter = data.researchProvider === "openrouter";
-  const usesTavily = usesOpenRouter || data.searchProvider === "tavily";
+  const usesGroq = data.researchProvider === "groq";
+  const usesExternalResearch = usesOpenRouter || usesGroq;
+  const researchAI = usesOpenRouter
+    ? "OpenRouter"
+    : usesGroq
+      ? "Groq"
+      : "Gemini";
+  const usesTavily = usesExternalResearch || data.searchProvider === "tavily";
+  const researchConfigured = usesOpenRouter
+    ? data.openrouterConfigured
+    : usesGroq
+      ? data.groqConfigured
+      : data.aiConfigured;
   return (
     <div className="stack settings-section">
       <form
@@ -93,6 +109,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             aiConfigured: _configured,
             searchConfigured: _searchConfigured,
             openrouterConfigured: _openrouterConfigured,
+            groqConfigured: _groqConfigured,
             ...input
           } = data;
           save.mutate({
@@ -107,6 +124,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 ? { openrouterApiKey: openrouterKey.trim() }
                 : {}),
               ...(clearOpenrouterKey ? { clearOpenrouterApiKey: true } : {}),
+              ...(groqKey.trim() ? { groqApiKey: groqKey.trim() } : {}),
+              ...(clearGroqKey ? { clearGroqApiKey: true } : {}),
             },
           });
         }}
@@ -219,12 +238,18 @@ function SettingsForm({ initial }: { initial: Settings }) {
               onChange={(value) =>
                 setData((current) => ({
                   ...current,
-                  researchProvider: value as "gemini" | "openrouter",
+                  researchProvider: value as Settings["researchProvider"],
                   ...(value === "openrouter"
                     ? {
                         searchProvider: "tavily",
                         openrouterModel:
                           current.openrouterModel || "openrouter/free",
+                      }
+                    : {}),
+                  ...(value === "groq"
+                    ? {
+                        searchProvider: "tavily",
+                        groqModel: current.groqModel || "openai/gpt-oss-120b",
                       }
                     : {}),
                 }))
@@ -235,6 +260,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
                   value: "openrouter",
                   label: "OpenRouter · modelos gratuitos",
                 },
+                { value: "groq", label: "Groq · Tavily para pesquisa" },
               ]}
             />
             <SelectField
@@ -248,7 +274,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
                   value: "tavily",
                   label: "Tavily · plano gratuito (recomendado)",
                 },
-                ...(!usesOpenRouter
+                ...(!usesExternalResearch
                   ? [{ value: "gemini", label: "Ferramentas Google do Gemini" }]
                   : []),
               ]}
@@ -256,11 +282,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
             {usesTavily ? (
               <>
                 <p className="helper">
-                  O Tavily pesquisa na web;{" "}
-                  {usesOpenRouter ? "o OpenRouter" : "o Gemini"} organiza e
-                  verifica as informações encontradas. Essa opção não usa as
-                  ferramentas pagas de Google Search/Maps do Gemini. Links do
-                  Google Maps só aparecem quando encontrados nas fontes.
+                  O Tavily pesquisa na web; o {researchAI} organiza e verifica
+                  as informações encontradas. Essa opção não usa as ferramentas
+                  pagas de Google Search/Maps do Gemini. Links do Google Maps só
+                  aparecem quando encontrados nas fontes.
                 </p>
                 <p className="helper">
                   {data.searchConfigured
@@ -407,6 +432,91 @@ function SettingsForm({ initial }: { initial: Settings }) {
                   selecionado acima, com uma quota separada.
                 </p>
               </>
+            ) : usesGroq ? (
+              <>
+                <p className="helper">
+                  {data.groqConfigured
+                    ? "Chave Groq configurada."
+                    : "Falta configurar a chave Groq para pesquisar."}{" "}
+                  <a
+                    href="https://console.groq.com/keys"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Obter chave na Groq ↗
+                  </a>
+                </p>
+                <TextField
+                  label="Groq API key (deixe vazio para preservar)"
+                  type="password"
+                  value={groqKey}
+                  onChange={(value) => {
+                    setGroqKey(value);
+                    if (value) setClearGroqKey(false);
+                  }}
+                />
+                {data.groqConfigured && (
+                  <label className="flex items-start gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={clearGroqKey}
+                      onChange={(event) => {
+                        setClearGroqKey(event.target.checked);
+                        if (event.target.checked) setGroqKey("");
+                      }}
+                    />
+                    <span>
+                      Remover a chave Groq salva ao salvar as configurações
+                    </span>
+                  </label>
+                )}
+                <SelectField
+                  label="Modelo Groq da pesquisa"
+                  value={data.groqModel || "openai/gpt-oss-120b"}
+                  onChange={(value) => update("groqModel", value)}
+                  options={[
+                    {
+                      value: "openai/gpt-oss-120b",
+                      label: "GPT OSS 120B · pesquisa com fontes",
+                    },
+                    {
+                      value: "openai/gpt-oss-20b",
+                      label: "GPT OSS 20B · alternativa mais leve",
+                    },
+                    ...(data.groqModel &&
+                    !["openai/gpt-oss-120b", "openai/gpt-oss-20b"].includes(
+                      data.groqModel,
+                    )
+                      ? [{ value: data.groqModel, label: data.groqModel }]
+                      : []),
+                  ]}
+                />
+                <TextField
+                  label="Identificador do modelo Groq"
+                  value={data.groqModel || "openai/gpt-oss-120b"}
+                  onChange={(value) => update("groqModel", value.trim())}
+                  placeholder="openai/gpt-oss-120b"
+                />
+                <p className="helper">
+                  O Tavily coleta as fontes e a Groq interpreta os resultados;
+                  este modo não usa as ferramentas de busca da Groq. A chave
+                  fica criptografada no servidor e não é exibida novamente.
+                  Disponibilidade e limites de tokens e chamadas dependem do
+                  modelo e da sua conta.{" "}
+                  <a
+                    href="https://console.groq.com/docs/rate-limits"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Conferir limites da Groq ↗
+                  </a>
+                </p>
+                <p className="helper">
+                  Análises e mensagens continuam no modelo Gemini selecionado
+                  acima. As quotas da Groq, do Gemini e do Tavily são separadas.
+                </p>
+              </>
             ) : (
               <>
                 <SelectField
@@ -490,9 +600,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 A descoberta e a pesquisa de contatos precisam da integração.
                 Auditoria técnica, CRM e templates manuais continuam disponíveis
                 sem ela. As chaves ficam criptografadas no backend. TPM é o
-                limite de tokens por minuto, não um saldo. Gemini, OpenRouter e
-                Tavily têm limites separados, além do teto diário deste site.
-                Confira as quotas das suas contas antes de iniciar uma rodada.
+                limite de tokens por minuto, não um saldo. Gemini, OpenRouter,
+                Groq e Tavily têm limites separados, além do teto diário deste
+                site. Confira as quotas das suas contas antes de iniciar uma
+                rodada.
               </AlertDescription>
             </Alert>
             <Button type="submit" disabled={save.isPending}>
@@ -501,12 +612,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             <Button
               type="button"
               variant="outline"
-              disabled={
-                testResearch.isPending ||
-                (usesOpenRouter
-                  ? !data.openrouterConfigured
-                  : !data.aiConfigured)
-              }
+              disabled={testResearch.isPending || !researchConfigured}
               onClick={() =>
                 testResearch.mutate({ path: "/settings/test-research" })
               }

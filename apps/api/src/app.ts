@@ -633,16 +633,21 @@ export async function buildApp(
           409,
           "Cole a chave Tavily em Configurações antes de pesquisar.",
         );
-      if (settings.researchProvider === "openrouter") {
+      if (
+        settings.researchProvider === "openrouter" ||
+        settings.researchProvider === "groq"
+      ) {
+        const groq = settings.researchProvider === "groq";
+        const providerName = groq ? "Groq" : "OpenRouter";
         if (settings.searchProvider !== "tavily")
           throw new AppError(
             409,
-            "Selecione Tavily como fonte para pesquisar com OpenRouter.",
+            `Selecione Tavily como fonte para pesquisar com ${providerName}.`,
           );
-        if (!settings.openrouterConfigured)
+        if (!(groq ? settings.groqConfigured : settings.openrouterConfigured))
           throw new AppError(
             409,
-            "Cole a chave OpenRouter em Configurações antes de pesquisar.",
+            `Cole a chave ${providerName} em Configurações antes de pesquisar.`,
           );
       } else if (!settings.aiConfigured)
         throw new AppError(

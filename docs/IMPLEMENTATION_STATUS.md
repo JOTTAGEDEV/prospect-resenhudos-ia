@@ -10,6 +10,7 @@
 - [x] Pesquisa Tavily + Gemini ou ferramentas Google, com fontes verificadas; Overpass preservado apenas como adaptador de compatibilidade.
 - [x] Chave Tavily configurável na interface e criptografada separadamente, sem retorno do segredo ao navegador.
 - [x] OpenRouter gratuito como IA alternativa da pesquisa, com chave própria criptografada, roteamento a preço zero e bloqueio de modelos pagos. Análises e mensagens permanecem no Gemini.
+- [x] Groq como IA alternativa da pesquisa Tavily, com chave própria criptografada, modelo configurável (`openai/gpt-oss-120b` por padrão), teste de conexão isolado e trechos limitados para reduzir pressão na quota por minuto. Validação de fontes usa os documentos originais; análises e mensagens permanecem no Gemini.
 - [x] Raio de até 50 km, verificação de sites antes da revisão e etapas persistentes com janela de dez minutos.
 - [x] Usuário e nome de exibição editáveis; limpeza explícita de leads e históricos preserva configurações, chaves e quota.
 - [x] Importação CSV atômica e exportação com proteção contra fórmulas.
@@ -28,11 +29,12 @@
 
 ## Verificações executadas
 
-- [x] TypeScript, ESLint, **154 testes Vitest** e builds web/API passaram. As integrações Tavily/OpenRouter são cobertas por transporte, validação de fontes, chaves isoladas, cotas, teste de pesquisa sem busca e ausência de redirecionamento pago.
+- [x] TypeScript, ESLint, **195 testes Vitest** e builds web/API passaram. Tavily/OpenRouter/Groq são cobertos por transporte, validação de fontes, chaves isoladas, cotas, teste de pesquisa sem busca e ausência de redirecionamento automático para outros provedores. Falhas Groq com uso informado preservam modelo/tokens no histórico.
 - [x] `npm run test:e2e`: fluxo integrado Chromium passou, com banco e servidor exclusivos de teste.
 - [x] E2E: login → descoberta mockada → auditoria mockada → IA mockada → mensagem → aprovação → pipeline → reload → cadastro manual → configurações.
 - [x] E2E: salvar chave Tavily fictícia, recarregar sem expor o segredo, preservar com campo vazio e remover explicitamente.
 - [x] E2E: selecionar OpenRouter força Tavily, salva/preserva/remove chave própria sem expô-la, permite pesquisa sem chave Gemini e testa a IA separadamente com resposta mockada.
+- [x] E2E: Groq salva/preserva/remove chave fictícia sem expô-la, força Tavily, permite pesquisa sem Gemini e testa conexão com resposta mockada. Configurações Groq em viewport móvel passaram no axe WCAG 2/2.1 AA executado, sem overflow.
 - [x] E2E: sem erros JavaScript ou overflow nos tamanhos móveis/tablet testados; modo reduced-motion.
 - [x] Axe no dashboard com dados, temas escuro/claro: nenhuma violação nas regras WCAG 2 A/AA e 2.1 AA executadas. Não equivale a certificação de todas as telas.
 - [x] Login e dashboard também executados no ambiente real `http://127.0.0.1:5173`, com banco persistente e sem mocks.
@@ -42,6 +44,8 @@
 - [x] Setup repetido preserva usuários e senhas existentes.
 
 ## Dependências externas não confirmadas
+
+- [ ] Groq ao vivo: integração e transporte validados com mocks. A chave enviada no chat não foi usada; o teste real depende de uma chave nova cadastrada diretamente em Configurações pelo usuário.
 
 - [x] OpenRouter ao vivo: teste de conexão respondeu em 6,6 segundos. Uma rodada real em 50 km encontrou três empresas com dados de contato apoiados em fontes; uma foi salva para revisão após o site não ser localizado, e duas ficaram inconclusivas e não foram importadas. O modelo gratuito que respondeu foi `nvidia/nemotron-3.5-super-vl:free`.
 
@@ -59,7 +63,7 @@
 - Pesquisa requer coordenadas, sem geocodificação. Correspondências ambíguas não são mescladas automaticamente.
 - Sem restauração de JSON pela interface; backup integral de SQLite e restauração manual documentados.
 - Sem pagamentos, disparos ou agendamentos automáticos de prospecção.
-- A pesquisa externa Tavily permanece pendente até uma execução real com a chave cadastrada. A presença de uma chave salva não prova validade ou disponibilidade de quota.
+- Tavily + OpenRouter tiveram uma rodada real concluída. A validação ao vivo com Groq e a conclusão da rodada Tavily + Gemini continuam pendentes; presença de chave salva não prova validade ou quota disponível.
 
 ## Repositório e acesso
 

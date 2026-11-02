@@ -265,6 +265,7 @@ export const settings = sqliteTable("integration_settings", {
   encryptedKey: text("encrypted_key"),
   encryptedSearchKey: text("encrypted_search_key"),
   encryptedOpenRouterKey: text("encrypted_openrouter_key"),
+  encryptedGroqKey: text("encrypted_groq_key"),
 });
 export const usage = sqliteTable("api_usage", {
   ...common(),

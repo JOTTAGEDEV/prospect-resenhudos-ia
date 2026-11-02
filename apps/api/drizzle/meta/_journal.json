@@ -29,6 +29,13 @@
       "when": 1793638939499,
       "tag": "0003_openrouter_research_key",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793650633102,
+      "tag": "0004_groq_research_key",
+      "breakpoints": true
     }
   ]
 }

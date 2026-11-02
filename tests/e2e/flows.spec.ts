@@ -92,7 +92,9 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     }),
   );
   await page
-    .getByLabel("Chave Gemini API (deixe vazio para preservar)", { exact: true })
+    .getByLabel("Chave Gemini API (deixe vazio para preservar)", {
+      exact: true,
+    })
     .fill("test-key-only");
   await page
     .getByRole("button", { name: "Carregar modelos da minha conta" })
@@ -119,6 +121,7 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
   expect(savedInput).not.toHaveProperty("aiConfigured");
   expect(savedInput).not.toHaveProperty("searchConfigured");
   expect(savedInput).not.toHaveProperty("openrouterConfigured");
+  expect(savedInput).not.toHaveProperty("groqConfigured");
   const savedSettings = await saved.json();
   expect(savedSettings.searchProvider).toBe("tavily");
   expect(savedSettings.searchConfigured).toBe(true);
@@ -182,6 +185,7 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
   expect(openrouterInput).not.toHaveProperty("aiConfigured");
   expect(openrouterInput).not.toHaveProperty("searchConfigured");
   expect(openrouterInput).not.toHaveProperty("openrouterConfigured");
+  expect(openrouterInput).not.toHaveProperty("groqConfigured");
   const openrouterSettings = await openrouterSaved.json();
   expect(openrouterSettings.researchProvider).toBe("openrouter");
   expect(openrouterSettings.openrouterModel).toBe("openrouter/free");
@@ -272,6 +276,135 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     page.getByText("Configure a chave OpenRouter para pesquisar", {
       exact: true,
     }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Configurações", exact: true }).click();
+  await page.getByLabel("IA da pesquisa", { exact: true }).selectOption("groq");
+  await expect(
+    page.getByLabel("Fonte da pesquisa", { exact: true }),
+  ).toHaveValue("tavily");
+  await expect(
+    page.getByLabel("Fonte da pesquisa", { exact: true }).locator("option"),
+  ).toHaveCount(1);
+  await expect(
+    page.getByLabel("Modelo Groq da pesquisa", { exact: true }),
+  ).toHaveValue("openai/gpt-oss-120b");
+  await expect(
+    page.getByRole("button", {
+      name: "Testar IA da pesquisa salva (consome 1 chamada)",
+    }),
+  ).toBeDisabled();
+  await page
+    .getByLabel("Groq API key (deixe vazio para preservar)", { exact: true })
+    .fill("gsk-e2e-dummy-only");
+  const groqResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings") &&
+      response.request().method() === "PATCH",
+  );
+  await page
+    .getByRole("button", { name: "Salvar integrações e modelos" })
+    .click();
+  const groqSaved = await groqResponse;
+  const groqInput = groqSaved.request().postDataJSON();
+  for (const flag of [
+    "aiConfigured",
+    "searchConfigured",
+    "openrouterConfigured",
+    "groqConfigured",
+  ])
+    expect(groqInput).not.toHaveProperty(flag);
+  const groqSettings = await groqSaved.json();
+  expect(groqSettings.researchProvider).toBe("groq");
+  expect(groqSettings.groqModel).toBe("openai/gpt-oss-120b");
+  expect(groqSettings.groqConfigured).toBe(true);
+  expect(groqSettings.model).toBe("test-model");
+  expect(JSON.stringify(groqSettings)).not.toContain("gsk-e2e-dummy-only");
+  await page.reload();
+  await expect(
+    page.getByLabel("Groq API key (deixe vazio para preservar)", {
+      exact: true,
+    }),
+  ).toHaveValue("");
+  await expect(
+    page.getByText("Chave Groq configurada.", { exact: false }),
+  ).toBeVisible();
+  // Empty Groq key fields preserve the encrypted key on an ordinary settings save.
+  const groqPreservedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings") &&
+      response.request().method() === "PATCH",
+  );
+  await page
+    .getByRole("button", { name: "Salvar integrações e modelos" })
+    .click();
+  const groqPreserved = await groqPreservedResponse;
+  expect(groqPreserved.request().postDataJSON()).not.toHaveProperty(
+    "groqApiKey",
+  );
+  expect((await groqPreserved.json()).groqConfigured).toBe(true);
+  await page.reload();
+  await page
+    .getByRole("button", {
+      name: "Testar IA da pesquisa salva (consome 1 chamada)",
+    })
+    .click();
+  await expect(
+    page.getByText("Modelo de pesquisa respondeu", { exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
+  await page.screenshot({
+    path: "test-results/groq-settings-mobile.png",
+    fullPage: true,
+  });
+  const groqAudit = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+    .analyze();
+  expect(groqAudit.violations.map((violation) => violation.id)).toEqual([]);
+  await page.route("**/api/settings", (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        json: { ...groqSettings, aiConfigured: false },
+      });
+    }
+    return route.continue();
+  });
+  await page
+    .getByRole("link", { name: "Descobrir empresas", exact: true })
+    .first()
+    .click();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Buscar empresas" }),
+  ).toBeEnabled();
+  await expect(page.getByText("Tavily + Groq", { exact: false })).toBeVisible();
+  await page.unroute("**/api/settings");
+  await page.getByRole("link", { name: "Configurações", exact: true }).click();
+  await page
+    .getByRole("checkbox", {
+      name: "Remover a chave Groq salva ao salvar as configurações",
+    })
+    .check();
+  await page
+    .getByRole("button", { name: "Salvar integrações e modelos" })
+    .click();
+  await expect(
+    page.getByText("Falta configurar a chave Groq para pesquisar.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Descobrir empresas", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Buscar empresas" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText("Configure a chave Groq para pesquisar", { exact: true }),
   ).toBeVisible();
   await page.getByRole("link", { name: "Configurações", exact: true }).click();
   await page

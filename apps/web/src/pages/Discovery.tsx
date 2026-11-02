@@ -53,13 +53,19 @@ export default function Discovery() {
     refetchInterval: 3000,
   });
   const usesOpenRouter = settings.data?.researchProvider === "openrouter";
-  const researchAI = usesOpenRouter ? "OpenRouter" : "Gemini";
+  const usesGroq = settings.data?.researchProvider === "groq";
+  const researchAI = usesOpenRouter
+    ? "OpenRouter"
+    : usesGroq
+      ? "Groq"
+      : "Gemini";
   const usesTavily =
-    usesOpenRouter || settings.data?.searchProvider === "tavily";
+    usesOpenRouter || usesGroq || settings.data?.searchProvider === "tavily";
   const missingTavilyKey =
     usesTavily && settings.data?.searchConfigured === false;
-  const missingOpenRouterKey =
-    usesOpenRouter && settings.data?.openrouterConfigured === false;
+  const missingResearchKey =
+    (usesOpenRouter && settings.data?.openrouterConfigured === false) ||
+    (usesGroq && settings.data?.groqConfigured === false);
   return (
     <>
       <PageHead
@@ -86,12 +92,12 @@ export default function Discovery() {
           </AlertDescription>
         </Alert>
       )}
-      {missingOpenRouterKey && (
+      {missingResearchKey && (
         <Alert className="mb-6">
           <Info />
-          <AlertTitle>Configure a chave OpenRouter para pesquisar</AlertTitle>
+          <AlertTitle>Configure a chave {researchAI} para pesquisar</AlertTitle>
           <AlertDescription>
-            O OpenRouter está selecionado, mas a chave ainda não foi salva.{" "}
+            O {researchAI} está selecionado, mas a chave ainda não foi salva.{" "}
             <Link to="/configuracoes" className="underline">
               Abrir Configurações e colar a chave
             </Link>
@@ -218,7 +224,7 @@ export default function Discovery() {
               <Button
                 type="submit"
                 disabled={
-                  action.isPending || missingTavilyKey || missingOpenRouterKey
+                  action.isPending || missingTavilyKey || missingResearchKey
                 }
               >
                 <Search data-icon="inline-start" />

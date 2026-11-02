@@ -426,6 +426,7 @@ describe("Fluxo integrado", () => {
     vi.stubEnv("TAVILY_API_KEY", "");
     vi.stubEnv("GEMINI_API_KEY", "");
     vi.stubEnv("OPENROUTER_API_KEY", "");
+    vi.stubEnv("GROQ_API_KEY", "");
     const { app: realApp } = await buildApp(database.db, { worker: false });
     const before = await database.db.select().from(s.jobs).all();
     try {
@@ -465,6 +466,18 @@ describe("Fluxo integrado", () => {
       const missingOpenRouter = await realApp.inject(request);
       expect(missingOpenRouter.statusCode).toBe(409);
       expect(missingOpenRouter.json().error).toContain("chave OpenRouter");
+      await updateSettings(database.db, workspaceId, {
+        ...defaults,
+        researchProvider: "groq",
+        searchProvider: "tavily",
+        clearGroqApiKey: true,
+      });
+      const missingGroq = await realApp.inject(request);
+      expect(missingGroq.statusCode).toBe(409);
+      expect(missingGroq.json().error).toContain("chave Groq");
+      expect(await database.db.select().from(s.jobs).all()).toHaveLength(
+        before.length,
+      );
       await updateSettings(database.db, workspaceId, {
         ...defaults,
         researchProvider: "openrouter",

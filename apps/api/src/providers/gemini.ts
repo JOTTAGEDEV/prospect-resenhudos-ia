@@ -31,6 +31,7 @@ import {
   getApiKey,
   getSearchApiKey,
   getOpenRouterApiKey,
+  getGroqApiKey,
 } from "../services/settings.js";
 import { GEMINI_TIMEOUT_MS } from "../config.js";
 import { searchTavily } from "./tavily.js";
@@ -42,6 +43,8 @@ import {
   externalOutputGuide,
 } from "./external-grounded-businesses.js";
 import { generateOpenRouter, isFreeOpenRouterModel } from "./openrouter.js";
+import { generateGroq, isGroqModel, GroqResponseError } from "./groq.js";
+import { groqResearchDocuments } from "./groq-documents.js";
 export interface AIProvider {
   testResearch?(workspaceId: string, signal?: AbortSignal): Promise<void>;
   discoverBusinesses?(
@@ -89,6 +92,7 @@ export class GeminiProvider implements AIProvider {
       }),
     private searchWeb = searchTavily,
     private generateFree = generateOpenRouter,
+    private generateGroqResearch = generateGroq,
   ) {}
   private async generate<T>(
     workspaceId: string,
@@ -102,20 +106,34 @@ export class GeminiProvider implements AIProvider {
   ): Promise<T> {
     const settings = await getSettings(this.db, workspaceId);
     const openrouter = research && settings.researchProvider === "openrouter";
+    const groq = research && settings.researchProvider === "groq";
+    const externalAI = openrouter || groq;
+    const providerName = groq ? "Groq" : openrouter ? "OpenRouter" : "Gemini";
+    const usageModel = (value: string) =>
+      externalAI ? `${groq ? "groq" : "openrouter"}:${value}` : value;
     const testResearch = research && researchMode === "test";
-    if (openrouter && !testResearch && settings.searchProvider !== "tavily")
+    if (externalAI && !testResearch && settings.searchProvider !== "tavily")
       throw new AppError(
         409,
-        "A pesquisa OpenRouter exige Tavily como fonte da web. Selecione Tavily em Configurações.",
+        `A pesquisa ${providerName} exige Tavily como fonte da web. Selecione Tavily em Configurações.`,
       );
-    const key = openrouter
-      ? await getOpenRouterApiKey(this.db, workspaceId)
-      : await getApiKey(this.db, workspaceId);
-    const model = openrouter
-      ? settings.openrouterModel || "openrouter/free"
-      : research
-        ? settings.researchModel || settings.model
-        : settings.model;
+    const key = groq
+      ? await getGroqApiKey(this.db, workspaceId)
+      : openrouter
+        ? await getOpenRouterApiKey(this.db, workspaceId)
+        : await getApiKey(this.db, workspaceId);
+    const model = groq
+      ? settings.groqModel || "openai/gpt-oss-120b"
+      : openrouter
+        ? settings.openrouterModel || "openrouter/free"
+        : research
+          ? settings.researchModel || settings.model
+          : settings.model;
+    if (groq && !isGroqModel(model))
+      throw new AppError(
+        409,
+        "Selecione um identificador de modelo Groq de texto válido em Configurações.",
+      );
     if (openrouter && !isFreeOpenRouterModel(model))
       throw new AppError(
         409,
@@ -124,9 +142,11 @@ export class GeminiProvider implements AIProvider {
     if (!key || !model)
       throw new AppError(
         409,
-        openrouter
-          ? "Configure a chave OpenRouter e um modelo gratuito em Configurações."
-          : "Configure a chave Gemini e um modelo disponível. Os demais recursos continuam funcionando.",
+        groq
+          ? "Configure a chave Groq e um modelo disponível em Configurações."
+          : openrouter
+            ? "Configure a chave OpenRouter e um modelo gratuito em Configurações."
+            : "Configure a chave Gemini e um modelo disponível. Os demais recursos continuam funcionando.",
       );
     const date = new Intl.DateTimeFormat("en-CA", {
       timeZone: "America/Sao_Paulo",
@@ -138,7 +158,7 @@ export class GeminiProvider implements AIProvider {
     const record = {
       ...stamp(),
       workspaceId,
-      model: openrouter ? `openrouter:${model}` : model,
+      model: usageModel(model),
       status: "reserved",
       tokens: 0,
     };
@@ -173,8 +193,9 @@ export class GeminiProvider implements AIProvider {
           : externalBusinessSchema;
       const searchInput = input as SearchInput;
       const evidenceInput = input as Evidence;
-      const resultLimit =
-        researchMode === "discovery"
+      const resultLimit = groq
+        ? 6
+        : researchMode === "discovery"
           ? Math.min(20, Math.max(5, searchInput.limit * 2))
           : 6;
       const searchKey = external
@@ -285,16 +306,26 @@ export class GeminiProvider implements AIProvider {
         tokens: number;
         model: string;
       };
-      if (openrouter) {
+      if (externalAI) {
         aiStarted = true;
-        const response = await this.generateFree({
+        const generateResearch = groq
+          ? this.generateGroqResearch
+          : this.generateFree;
+        const response = await generateResearch({
           key,
           model,
           system: systemInstruction,
           contents: JSON.stringify(
-            external ? { request: input, documents } : input,
+            external
+              ? {
+                  request: input,
+                  documents: groq
+                    ? groqResearchDocuments(documents)
+                    : documents,
+                }
+              : input,
           ),
-          maxTokens: testResearch ? 2048 : 16384,
+          maxTokens: testResearch ? 2048 : groq ? 4096 : 16384,
           effort: testResearch ? "low" : "high",
           signal,
         });
@@ -312,19 +343,19 @@ export class GeminiProvider implements AIProvider {
           documents,
           searchInput,
         );
-        if (openrouter) {
+        if (externalAI) {
           for (const lead of discovery.leads)
-            lead.source = "Tavily + OpenRouter";
+            lead.source = `Tavily + ${providerName}`;
           discovery.report.text = discovery.report.text.replace(
             "organizada pelo Gemini",
-            "organizada pelo OpenRouter",
+            `organizada pelo ${providerName}`,
           );
         }
         return discovery;
       };
       reportedUsage = {
         tokens: result.tokens,
-        model: openrouter ? `openrouter:${result.model}` : result.model,
+        model: usageModel(result.model),
       };
       const parsed = schema.parse(
         external
@@ -340,13 +371,18 @@ export class GeminiProvider implements AIProvider {
         .set({
           status: "completed",
           tokens: result.tokens,
-          model: openrouter ? `openrouter:${result.model}` : result.model,
+          model: usageModel(result.model),
           updatedAt: new Date().toISOString(),
         })
         .where(eq(s.usage.id, record.id))
         .run();
       return parsed;
     } catch (error) {
+      if (error instanceof GroqResponseError)
+        reportedUsage = {
+          tokens: error.usage.tokens,
+          model: usageModel(error.usage.model),
+        };
       if (aiStarted)
         await this.db
           .update(s.usage)
@@ -371,15 +407,15 @@ export class GeminiProvider implements AIProvider {
       if (error instanceof z.ZodError || error instanceof SyntaxError)
         throw new AppError(
           502,
-          openrouter
-            ? "OpenRouter retornou uma estrutura inválida; nenhum resultado foi salvo. " +
+          externalAI
+            ? `${providerName} retornou uma estrutura inválida; nenhum resultado foi salvo. ` +
                 safeOutputDiagnostic(error)
             : "Gemini retornou uma estrutura inválida; nenhuma análise foi salva.",
         );
-      if (openrouter)
+      if (externalAI)
         throw new AppError(
           502,
-          "Falha de comunicação com OpenRouter. Nenhum resultado foi salvo.",
+          `Falha de comunicação com ${providerName}. Nenhum resultado foi salvo.`,
         );
       throw geminiError(error);
     }
