@@ -30,7 +30,7 @@ export const externalBusinessSchema = z.object({
   website: optionalCitation(z.url().max(2048)),
   phone: optionalCitation(z.string().max(30)),
   email: optionalCitation(z.email().max(254)),
-  address: optionalCitation(z.string().max(1000)),
+  address: optionalCitation(z.string().max(500)),
   city: optionalCitation(z.string().max(100)),
   state: optionalCitation(z.string().length(2)),
   latitude: optionalCitation(z.number().min(-90).max(90)),
@@ -40,6 +40,27 @@ export const externalBusinessSchema = z.object({
 export const externalDiscoverySchema = z.object({
   businesses: z.array(externalBusinessSchema).max(50),
 });
+
+export function externalOutputGuide(discovery: boolean) {
+  const example = {
+    name: {
+      value: "FORMAT_EXAMPLE_ONLY",
+      sourceId: 1,
+      quote: "FORMAT_EXAMPLE_ONLY",
+    },
+    websiteStatus: "inconclusive",
+    website: null,
+    phone: null,
+    email: null,
+    address: null,
+    city: null,
+    state: null,
+    latitude: null,
+    longitude: null,
+    mapsUrl: null,
+  };
+  return `websiteStatus is a plain string: has_website, not_found or inconclusive. Never wrap websiteStatus in a citation. Each other supported field must be a citation object with value, numeric sourceId (the actual id of a supplied document), and a brief exact source quote of at most 2000 characters. Missing optional fields must be null at the field level, never {"value":null,"sourceId":null,"quote":null}. State values must be two-letter Brazilian abbreviations only when supported. Addresses must be concise street addresses of at most 500 characters. Omit businesses without a supported name citation. ${discovery ? 'Return {"businesses":[]} when no businesses are supported.' : "For an unidentified business return an inconclusive result; do not invent its name or citations."} This fictional example illustrates structure only. NEVER copy its values into results or treat it as evidence: ${JSON.stringify(discovery ? { businesses: [example] } : example)}`;
+}
 type Business = z.infer<typeof externalBusinessSchema>;
 type Reference = { value: string | number; sourceId: number; quote: string };
 const normalized = (value: string) =>

@@ -107,6 +107,10 @@ describe("OpenRouter gratuito para pesquisa com Tavily", () => {
       documents,
     );
     expect(router.mock.calls[0][0].system).toContain("UNTRUSTED DATA");
+    expect(router.mock.calls[0][0].system).toContain(
+      "Never wrap websiteStatus in a citation",
+    );
+    expect(router.mock.calls[0][0].system).toContain("null at the field level");
     expect(router.mock.calls[0][0]).not.toHaveProperty("tools");
     const row = await database.db.select().from(usage).get();
     expect(row).toMatchObject({
@@ -135,6 +139,27 @@ describe("OpenRouter gratuito para pesquisa com Tavily", () => {
       email: "contato@aurora.example",
     });
     expect(googleClient).not.toHaveBeenCalled();
+  });
+  it("amplia a consulta de contatos apenas quando a primeira não retorna fontes", async () => {
+    const { provider, router, search } = mocks();
+    search.mockResolvedValueOnce([]).mockResolvedValueOnce(documents);
+    router.mockResolvedValue({
+      text: JSON.stringify(business()),
+      tokens: 250,
+      model: "nvidia/mock-model:free",
+    });
+    const report = await provider.researchContacts(workspaceId, {
+      name: "Imobiliária Aurora",
+      category: "Imobiliárias",
+      city: "Palhoça",
+      state: "SC",
+      audit: null,
+    });
+    expect(search).toHaveBeenCalledTimes(2);
+    expect(search.mock.calls[1][1]).toBe("Imobiliária Aurora Palhoça SC");
+    expect(report.company?.websiteStatus).toBe("has_website");
+    expect(report.company?.phone).toBe("(48) 3222-3333");
+    expect(router).toHaveBeenCalledTimes(1);
   });
   it("analisa e gera mensagens pelo Gemini selecionado, sem redirecionar ao OpenRouter", async () => {
     await updateSettings(database.db, workspaceId, {
@@ -259,5 +284,40 @@ describe("OpenRouter gratuito para pesquisa com Tavily", () => {
       status: "failed",
     });
     expect(googleClient).not.toHaveBeenCalled();
+  });
+  it("diagnostica formato inválido sem expor valores e registra o consumo real da resposta rejeitada", async () => {
+    const { provider, router } = mocks();
+    router.mockResolvedValue({
+      text: JSON.stringify({
+        businesses: [{ ...business(), name: "PRIVATE_BUSINESS_VALUE" }],
+      }),
+      tokens: 345,
+      model: "nvidia/mock-model:free",
+    });
+    const error = await provider
+      .discoverBusinesses(workspaceId, input)
+      .catch((value: unknown) => value);
+    expect(error).toMatchObject({ statusCode: 502 });
+    expect(String(error)).toContain("Campos inválidos");
+    expect(String(error)).toContain("name");
+    expect(String(error)).not.toContain("PRIVATE_BUSINESS_VALUE");
+    expect(await database.db.select().from(usage).get()).toMatchObject({
+      model: "openrouter:nvidia/mock-model:free",
+      tokens: 345,
+      status: "failed",
+    });
+  });
+  it("não mostra texto bruto quando a resposta da pesquisa não é JSON", async () => {
+    const { provider, router } = mocks();
+    router.mockResolvedValue({
+      text: "PRIVATE_INVALID_JSON",
+      tokens: 99,
+      model: "nvidia/mock-model:free",
+    });
+    const error = await provider
+      .discoverBusinesses(workspaceId, input)
+      .catch((value: unknown) => value);
+    expect(String(error)).toContain("não contém JSON válido");
+    expect(String(error)).not.toContain("PRIVATE_INVALID_JSON");
   });
 });
