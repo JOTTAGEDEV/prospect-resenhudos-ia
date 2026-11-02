@@ -172,7 +172,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             <FormError error={loadModels.error} />
             <p className="text-sm font-medium">Análises e mensagens</p>
             <SelectField
-              label="Selecionar modelo"
+              label="Modelo de análise e mensagens"
               value={data.model}
               onChange={(v) => update("model", v)}
               options={[
@@ -185,7 +185,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
               ]}
             />
             <TextField
-              label="Ou cole o identificador do modelo"
+              label="Identificador do modelo de análise"
               value={data.model}
               onChange={(v) =>
                 update("model", v.trim().replace(/^models\//, ""))

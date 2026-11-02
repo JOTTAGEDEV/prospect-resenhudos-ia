@@ -98,7 +98,7 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     .getByRole("button", { name: "Carregar modelos da minha conta" })
     .click();
   await page
-    .getByLabel("Selecionar modelo", { exact: true })
+    .getByLabel("Modelo de análise e mensagens", { exact: true })
     .selectOption("test-model");
   await page
     .getByLabel("Fonte da pesquisa", { exact: true })
@@ -123,7 +123,7 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
   ).toBeVisible();
   await page.reload();
   await expect(
-    page.getByLabel("Selecionar modelo", { exact: true }),
+    page.getByLabel("Modelo de análise e mensagens", { exact: true }),
   ).toHaveValue("test-model");
   await expect(
     page.getByLabel("Tavily API key (deixe vazio para preservar)", {

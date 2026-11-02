@@ -10,6 +10,8 @@ import { openDatabase, stamp } from "../apps/api/src/database/db.js";
 import { workspaces, usage } from "../apps/api/src/database/schema.js";
 import { defaults, updateSettings } from "../apps/api/src/services/settings.js";
 import { config } from "../apps/api/src/config.js";
+import { AppError } from "../apps/api/src/services/leads.js";
+import type { searchTavily } from "../apps/api/src/providers/tavily.js";
 
 const input = searchInput.parse({
   city: "Palhoça",
@@ -306,9 +308,7 @@ it("Tavily pesquisa e Gemini 3.8 organiza sem ferramentas Google, usando teto di
   expect(request.config.maxOutputTokens).toBe(32768);
   expect(JSON.parse(request.contents).documents).toEqual(documents);
   expect(search.mock.calls[0][0]).toBe("tavily-test-key");
-  expect(search.mock.calls[0][1]).toBe(
-    `${input.category} "Palhoça" SC endereço telefone site contato`,
-  );
+  expect(search.mock.calls[0][1]).toBe(`${input.category} em Palhoça SC`);
   expect(search.mock.calls[0][1]).not.toContain("Google Maps");
   expect(search.mock.calls[1][1]).toContain("site oficial");
   expect(search.mock.calls[1][1]).not.toContain("Google Maps");
@@ -322,4 +322,88 @@ it("Tavily pesquisa e Gemini 3.8 organiza sem ferramentas Google, usando teto di
   ).rejects.toMatchObject({ statusCode: 429 });
   expect(search).toHaveBeenCalledTimes(2);
   expect(generate).toHaveBeenCalledTimes(2);
+});
+
+async function configuredSearch(
+  search: ReturnType<typeof vi.fn<typeof searchTavily>>,
+  generate: ReturnType<typeof vi.fn>,
+) {
+  database = await openDatabase(":memory:");
+  const workspace = { ...stamp(), name: "Fallback Tavily" };
+  await database.db.insert(workspaces).values(workspace).run();
+  config.secret = "tavily-empty-test-secret".repeat(3);
+  await updateSettings(database.db, workspace.id, {
+    ...defaults,
+    searchProvider: "tavily",
+    model: "gemini-3.8-flash",
+    researchModel: "gemini-3.1-flash-lite",
+    apiKey: "gemini-test-key",
+    tavilyApiKey: "tavily-test-key",
+    dailyLimit: 20,
+  });
+  return {
+    workspaceId: workspace.id,
+    provider: new GeminiProvider(
+      database.db,
+      () =>
+        ({ models: { generateContent: generate } }) as unknown as GoogleGenAI,
+      search,
+    ),
+  };
+}
+it("faz uma única segunda consulta básica apenas quando a descoberta veio vazia", async () => {
+  const search = vi
+    .fn()
+    .mockResolvedValueOnce([])
+    .mockResolvedValueOnce(documents);
+  const generate = vi
+    .fn()
+    .mockResolvedValue({ text: JSON.stringify({ businesses: [business()] }) });
+  const { provider, workspaceId } = await configuredSearch(search, generate);
+  const result = await provider.discoverBusinesses(workspaceId, input);
+  expect(result.leads).toHaveLength(1);
+  expect(search).toHaveBeenCalledTimes(2);
+  expect(search.mock.calls[0][1]).toBe(`${input.category} em Palhoça SC`);
+  expect(search.mock.calls[1][1]).toBe(`${input.category} Palhoça SC empresas`);
+  expect(generate).toHaveBeenCalledTimes(1);
+});
+it("encerra após duas respostas vazias, sem chamar Gemini nem repetir indefinidamente", async () => {
+  const search = vi.fn().mockResolvedValue([]),
+    generate = vi.fn();
+  const { provider, workspaceId } = await configuredSearch(search, generate);
+  await expect(provider.discoverBusinesses(workspaceId, input)).rejects.toThrow(
+    "Tavily não retornou fontes",
+  );
+  expect(search).toHaveBeenCalledTimes(2);
+  expect(generate).not.toHaveBeenCalled();
+  expect(await database!.db.select().from(usage).all()).toHaveLength(0);
+});
+it.each([409, 429])(
+  "não repete busca após erro Tavily %i de chave ou quota",
+  async (statusCode) => {
+    const search = vi
+        .fn()
+        .mockRejectedValue(new AppError(statusCode, "Falha Tavily de teste")),
+      generate = vi.fn();
+    const { provider, workspaceId } = await configuredSearch(search, generate);
+    await expect(
+      provider.discoverBusinesses(workspaceId, input),
+    ).rejects.toMatchObject({ statusCode });
+    expect(search).toHaveBeenCalledTimes(1);
+    expect(generate).not.toHaveBeenCalled();
+    expect(await database!.db.select().from(usage).all()).toHaveLength(0);
+  },
+);
+it("mantém falha real do Gemini no contador diário após Tavily retornar fontes", async () => {
+  const search = vi.fn().mockResolvedValue(documents);
+  const generate = vi.fn().mockRejectedValue({ status: 503 });
+  const { provider, workspaceId } = await configuredSearch(search, generate);
+  await expect(provider.discoverBusinesses(workspaceId, input)).rejects.toThrow(
+    "HTTP 503",
+  );
+  expect(search).toHaveBeenCalledTimes(1);
+  expect(generate).toHaveBeenCalledTimes(1);
+  const rows = await database!.db.select().from(usage).all();
+  expect(rows).toHaveLength(1);
+  expect(rows[0].status).toBe("failed");
 });

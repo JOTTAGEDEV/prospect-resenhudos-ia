@@ -139,6 +139,7 @@ export class GeminiProvider implements AIProvider {
         );
       await tx.insert(s.usage).values(record).run();
     });
+    let geminiStarted = false;
     try {
       const external = research && settings.searchProvider === "tavily";
       const externalSchema =
@@ -147,22 +148,35 @@ export class GeminiProvider implements AIProvider {
           : externalBusinessSchema;
       const searchInput = input as SearchInput;
       const evidenceInput = input as Evidence;
-      const documents = external
+      const searchKey = external
+        ? await getSearchApiKey(this.db, workspaceId)
+        : "";
+      let documents = external
         ? await this.searchWeb(
-            await getSearchApiKey(this.db, workspaceId),
+            searchKey,
             researchMode === "discovery"
-              ? `${searchInput.category} "${searchInput.city}" ${searchInput.state} endereço telefone site contato`
-              : `"${evidenceInput.name}" ${evidenceInput.city || ""} ${evidenceInput.state || ""} site oficial contato telefone email ${evidenceInput.address?.slice(0, 80) || ""}`,
+              ? `${searchInput.category} em ${searchInput.city} ${searchInput.state}`
+              : `"${evidenceInput.name}" ${evidenceInput.city || ""} ${evidenceInput.state || ""} site oficial contato telefone email`,
             20,
             signal,
           )
         : [];
+      // One additional basic query only for an empty discovery result. Provider
+      // errors are propagated immediately; auth/quota failures are never repeated.
+      if (external && researchMode === "discovery" && !documents.length)
+        documents = await this.searchWeb(
+          searchKey,
+          `${searchInput.category} ${searchInput.city} ${searchInput.state} empresas`,
+          20,
+          signal,
+        );
       if (external && !documents.length)
         throw new AppError(
           502,
           "Tavily não retornou fontes para esta pesquisa. Tente outro segmento ou região.",
         );
       const client = this.createClient(key);
+      geminiStarted = true;
       const result = await client.models.generateContent({
         model,
         contents: JSON.stringify(
@@ -245,11 +259,17 @@ export class GeminiProvider implements AIProvider {
         .run();
       return parsed;
     } catch (error) {
-      await this.db
-        .update(s.usage)
-        .set({ status: "failed", updatedAt: new Date().toISOString() })
-        .where(eq(s.usage.id, record.id))
-        .run();
+      if (geminiStarted)
+        await this.db
+          .update(s.usage)
+          .set({ status: "failed", updatedAt: new Date().toISOString() })
+          .where(eq(s.usage.id, record.id))
+          .run();
+      else
+        await this.db
+          .delete(s.usage)
+          .where(and(eq(s.usage.id, record.id), eq(s.usage.status, "reserved")))
+          .run();
       if (error instanceof AppError) throw error;
       if (signal?.aborted)
         throw new AppError(

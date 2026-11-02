@@ -27,7 +27,7 @@
 
 ## Verificações executadas
 
-- [x] TypeScript, ESLint, **116 testes Vitest** e builds web/API passaram. A integração Tavily é coberta por testes de transporte, validação de trechos reais, identidade, contatos e separação das ferramentas Google.
+- [x] TypeScript, ESLint, **121 testes Vitest** e builds web/API passaram. A integração Tavily é coberta por testes de transporte, validação de trechos reais, identidade, contatos e separação das ferramentas Google.
 - [x] `npm run test:e2e`: fluxo integrado Chromium passou, com banco e servidor exclusivos de teste.
 - [x] E2E: login → descoberta mockada → auditoria mockada → IA mockada → mensagem → aprovação → pipeline → reload → cadastro manual → configurações.
 - [x] E2E: salvar chave Tavily fictícia, recarregar sem expor o segredo, preservar com campo vazio e remover explicitamente.
