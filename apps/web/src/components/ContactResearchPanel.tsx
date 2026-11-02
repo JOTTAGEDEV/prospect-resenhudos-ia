@@ -20,10 +20,11 @@ export function ContactResearchPanel({
     <section className="panel mb-6">
       <h2>Encontre os contatos que faltam</h2>
       <p className="helper mt-2 mb-4">
-        O Gemini cruza Google Search e Google Maps para conferir site, endereço,
-        telefone e email comercial desta empresa. Usa a chave e o modelo das
-        configurações e consome quota de IA e pesquisa. Confira a identidade e
-        as fontes antes de salvar os dados.
+        O Gemini pesquisa no Google Search para conferir site, endereço,
+        telefone e email comercial desta empresa. Quando disponíveis, links do
+        Google Maps ajudam a conferir a localização. Usa a chave e o modelo de
+        pesquisa das configurações e consome quota de IA e busca. Confira a
+        identidade e as fontes antes de salvar os dados.
       </p>
       <Button
         variant="outline"

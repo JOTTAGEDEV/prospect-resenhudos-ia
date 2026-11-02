@@ -56,7 +56,7 @@ export default function Discovery() {
       <PageHead
         eyebrow="DESCOBERTA LOCAL"
         title="Encontre sua próxima oportunidade."
-        description="O Gemini cruza Google Search e Google Maps para localizar empresas, sites e contatos comerciais com fontes."
+        description="O Gemini localiza empresas no Google Maps e pesquisa no Google Search para complementar sites e contatos comerciais com fontes."
       />
       <div className="grid-2">
         <section className="panel">
@@ -203,11 +203,12 @@ export default function Discovery() {
             <Jobs />
           </div>
           <p className="helper">
-            Esta pesquisa usa Google Search e{" "}
-            <span translate="no">Google Maps</span>, conforme o suporte do
-            modelo. Tokens por minuto, chamadas de IA e buscas têm quotas
-            diferentes. Cada nova rodada pode consumir sua quota; a chave e o
-            modelo são os salvos em Configurações.
+            A descoberta usa <span translate="no">Google Maps</span>; a
+            verificação complementa os dados com Google Search, conforme o
+            suporte do modelo de pesquisa. Tokens por minuto, chamadas de IA e
+            buscas têm quotas diferentes. Cada nova rodada pode consumir sua
+            quota; a chave e o modelo de pesquisa são os salvos em
+            Configurações.
           </p>
         </section>
       </div>

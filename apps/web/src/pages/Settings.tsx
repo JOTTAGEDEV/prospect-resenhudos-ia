@@ -157,6 +157,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 : "Carregar modelos da minha conta"}
             </Button>
             <FormError error={loadModels.error} />
+            <p className="text-sm font-medium">Análises e mensagens</p>
             <SelectField
               label="Selecionar modelo"
               value={data.model}
@@ -178,20 +179,63 @@ function SettingsForm({ initial }: { initial: Settings }) {
               }
               placeholder="Identificador do modelo no Google AI Studio"
             />
+            {data.model === "gemini-3.8-flash" && (
+              <p className="helper">
+                O Gemini 3.8 Flash usa raciocínio alto para interpretar as
+                evidências e preparar as mensagens.
+              </p>
+            )}
+            <p className="text-sm font-medium">
+              Descoberta e pesquisa de contatos
+            </p>
+            <SelectField
+              label="Modelo da pesquisa"
+              value={data.researchModel || ""}
+              onChange={(v) => update("researchModel", v)}
+              options={[
+                { value: "", label: "Usar o mesmo modelo de análise" },
+                { value: "gemini-2.5-flash", label: "Gemini 2.5 Flash" },
+                ...(data.researchModel &&
+                data.researchModel !== "gemini-2.5-flash" &&
+                !models.some((model) => model.value === data.researchModel)
+                  ? [{ value: data.researchModel, label: data.researchModel }]
+                  : []),
+                ...models.filter((model) => model.value !== "gemini-2.5-flash"),
+              ]}
+            />
+            <TextField
+              label="Identificador do modelo de pesquisa"
+              value={data.researchModel || ""}
+              onChange={(v) =>
+                update("researchModel", v.trim().replace(/^models\//, ""))
+              }
+              placeholder="Vazio para usar o modelo de análise"
+            />
+            <p className="helper">
+              O Gemini 2.5 Flash consulta Google Maps para descobrir empresas e
+              usa Google Search em outra etapa para complementar contatos e
+              conferir sites. Usa raciocínio dinâmico e até 32.768 tokens de
+              saída por chamada, conforme a necessidade.
+            </p>
+            <p className="helper">
+              A API gratuita do Gemini 3.8 Flash não inclui pesquisa com Google
+              Search ou Google Maps. Você pode manter o 3.8 nas análises e usar
+              o 2.5 Flash na pesquisa, respeitando as quotas da conta. Esta
+              seleção não ativa faturamento.{" "}
+              <a
+                href="https://ai.google.dev/gemini-api/docs/pricing"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Conferir disponibilidade e quotas oficiais ↗
+              </a>
+            </p>
             <TextField
               label="Teto diário de chamadas"
               type="number"
               value={String(data.dailyLimit)}
               onChange={(v) => update("dailyLimit", Number(v))}
             />
-            {data.model === "gemini-3.8-flash" && (
-              <p className="helper">
-                Pesquisa aprofundada: raciocínio alto e até 32.768 tokens de
-                saída por chamada de pesquisa. O modelo usa o necessário, sem
-                gastar todo o limite obrigatoriamente. Google Search e Google
-                Maps ajudam a localizar e conferir empresas e contatos.
-              </p>
-            )}
             <Alert>
               <KeyRound />
               <AlertTitle>Pesquisa conectada à sua conta Gemini</AlertTitle>
@@ -213,7 +257,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
               disabled={action.isPending}
               onClick={() => action.mutate({ path: "/settings/test-ai" })}
             >
-              Testar configuração salva (consome 1 chamada)
+              Testar modelo de análise salvo (consome 1 chamada)
             </Button>
           </FieldGroup>
         </section>

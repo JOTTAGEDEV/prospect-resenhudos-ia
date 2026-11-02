@@ -12,6 +12,7 @@ export const defaults: Settings = {
     "Sites institucionais, landing pages, sistemas personalizados, interfaces SaaS, identidade visual e edição de vídeos.",
   tone: "Consultivo",
   model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
+  researchModel: process.env.GEMINI_RESEARCH_MODEL || "",
   dailyLimit: Number(process.env.MAX_AI_REQUESTS_PER_DAY || 20),
   city: "Palhoça",
   latitude: -27.645,

@@ -105,6 +105,7 @@ export const settingsInput = z
     services: z.string().min(2).max(1000),
     tone: z.enum(["Direto", "Consultivo", "Profissional"]),
     model: z.string().max(100),
+    researchModel: z.string().max(100).optional(),
     dailyLimit: z.number().int().min(1).max(100),
     city: z.string().min(2).max(100),
     latitude: z.number().min(-90).max(90),

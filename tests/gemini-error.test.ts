@@ -36,4 +36,36 @@ describe("Diagnóstico Gemini sem expor segredos", () => {
       "não é possível concluir",
     );
   });
+  it("identifica a dimensão da quota em mensagens SDK com prefixo sem expor o restante", () => {
+    const error = geminiError({
+      status: 429,
+      message:
+        "API Error: " +
+        JSON.stringify({
+          error: {
+            code: 429,
+            details: [
+              {
+                violations: [
+                  {
+                    quotaId:
+                      "GenerateRequestsPerDayPerProjectPerModel-FreeTier",
+                    quotaValue: "20",
+                  },
+                  {
+                    quotaId:
+                      "GenerateRequestsPerMinutePerProjectPerModel-FreeTier",
+                    quotaValue: "5",
+                  },
+                ],
+              },
+            ],
+          },
+        }) +
+        " key=secret-test",
+    });
+    expect(error.message).toContain("20 chamadas por dia");
+    expect(error.message).toContain("5 chamadas por minuto");
+    expect(error.message).not.toContain("secret-test");
+  });
 });

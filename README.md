@@ -71,7 +71,7 @@ Análises usam [saída JSON estruturada](https://ai.google.dev/gemini-api/docs/s
 
 ## Descoberta com Google Search e Google Maps
 
-A descoberta usa Gemini com as ferramentas oficiais Google Search e Google Maps, independentemente do OpenStreetMap. Configure uma chave e um modelo compatível; Gemini 3.8 Flash é o padrão. Pesquisas e enriquecimento pedem raciocínio alto nos modelos Gemini 3 e até 32.768 tokens de saída por chamada. Esse é um teto, não consumo obrigatório. A quota de tokens por minuto não substitui as quotas e eventual cobrança das ferramentas do Google.
+A descoberta usa Gemini com ferramentas oficiais Google Search e Google Maps, independentemente do OpenStreetMap. Há seleções separadas para análise (`model`) e pesquisa (`researchModel`, vazio acompanha análise). Para uso gratuito, selecione Gemini 2.5 Flash na pesquisa e Gemini 3.8 Flash na análise: as ferramentas Search e Maps do 3.8 exigem a camada paga, mesmo com tokens de texto gratuitos. No 2.5, descoberta usa Maps e a conferência individual usa Search em chamadas separadas; no 3.8 compatível, elas podem ser combinadas. Pesquisas usam até 32.768 tokens de saída e orçamento de raciocínio ampliado; análises Gemini 3 usam raciocínio alto. Esse é um teto, não consumo obrigatório. A quota de tokens por minuto não substitui as quotas e eventual cobrança das ferramentas do Google.
 
 Nome, localidade, site, telefone e email são aceitos apenas com evidência de grounding retornada pelo provedor. Resultados exibem as fontes e a atribuição Google Maps. Quando não há coordenadas verificáveis, a pertinência à região é textual e o raio é aproximado; a interface informa essa limitação.
 

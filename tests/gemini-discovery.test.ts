@@ -94,6 +94,59 @@ function provider(generate: ReturnType<typeof vi.fn>) {
   );
 }
 
+it("separa pesquisa 2.5 e análise 3.8, sem combinar ferramentas incompatíveis no 2.5", async () => {
+  await updateSettings(database.db, workspaceId, {
+    ...defaults,
+    model: "gemini-3.8-flash",
+    researchModel: "gemini-2.5-flash",
+    dailyLimit: 20,
+  });
+  const generate = vi
+    .fn()
+    .mockResolvedValueOnce(grounded({ businesses: [business] }))
+    .mockResolvedValueOnce(grounded(business))
+    .mockResolvedValueOnce({
+      text: JSON.stringify({
+        businessSummary: "Resumo sustentado pelas evidências",
+        opportunities: [],
+        recommendedService: "Revisão",
+        suggestedApproach: "Conversar",
+        limitations: ["Sem auditoria"],
+      }),
+      usageMetadata: { totalTokenCount: 100 },
+    });
+  const ai = provider(generate);
+  await ai.discoverBusinesses(workspaceId, input);
+  await ai.researchContacts(workspaceId, {
+    name: business.name,
+    category: "Oficinas",
+    city: business.city,
+    audit: null,
+  });
+  await ai.analyzeBusiness(workspaceId, {
+    name: business.name,
+    category: "Oficinas",
+    audit: null,
+  });
+  expect(generate.mock.calls[0][0].model).toBe("gemini-2.5-flash");
+  expect(generate.mock.calls[0][0].config.tools).toEqual([{ googleMaps: {} }]);
+  expect(generate.mock.calls[0][0].config.thinkingConfig.thinkingBudget).toBe(
+    16384,
+  );
+  expect(generate.mock.calls[1][0].config.tools).toEqual([
+    { googleSearch: {} },
+  ]);
+  expect(generate.mock.calls[2][0].model).toBe("gemini-3.8-flash");
+  expect(generate.mock.calls[2][0].config.thinkingConfig.thinkingLevel).toBe(
+    "HIGH",
+  );
+  expect(
+    (await database.db.select().from(usage).all())
+      .map((row) => row.model)
+      .sort(),
+  ).toEqual(["gemini-2.5-flash", "gemini-2.5-flash", "gemini-3.8-flash"]);
+});
+
 it("busca com Maps e Search, raciocínio alto, orçamento ampliado e localização", async () => {
   const generate = vi
     .fn()
