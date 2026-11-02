@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Search, MapPin, Info } from "lucide-react";
 import { segments, type Lead, type Settings } from "@jotage/shared";
@@ -51,20 +52,43 @@ export default function Discovery() {
     enabled: !!selected,
     refetchInterval: 3000,
   });
+  const usesTavily = settings.data?.searchProvider === "tavily";
+  const missingTavilyKey =
+    usesTavily && settings.data?.searchConfigured === false;
   return (
     <>
       <PageHead
         eyebrow="DESCOBERTA LOCAL"
         title="Encontre sua próxima oportunidade."
-        description="O Gemini localiza empresas no Google Maps e pesquisa no Google Search para complementar sites e contatos comerciais com fontes."
+        description={
+          usesTavily
+            ? "O Tavily pesquisa empresas na web e o Gemini organiza sites, localidade e contatos comerciais com fontes."
+            : settings.data
+              ? "O Gemini usa as ferramentas Google disponíveis na sua conta para localizar empresas e conferir sites e contatos com fontes."
+              : "Pesquise empresas, sites e contatos comerciais com a fonte e o modelo definidos nas configurações."
+        }
       />
+      {missingTavilyKey && (
+        <Alert className="mb-6">
+          <Info />
+          <AlertTitle>Configure a chave Tavily para pesquisar</AlertTitle>
+          <AlertDescription>
+            O Tavily está selecionado, mas a chave ainda não foi salva.{" "}
+            <Link to="/configuracoes" className="underline">
+              Abrir Configurações e colar a chave
+            </Link>
+            . A chave Gemini será usada para interpretar os resultados.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="grid-2">
         <section className="panel">
           <div className="panel-head">
             <div>
               <h2>Onde vamos procurar?</h2>
               <p className="helper">
-                Pesquisa com Gemini · região de até 50 km
+                {usesTavily ? "Tavily + Gemini" : "Pesquisa com Gemini"} · região
+                de até 50 km
               </p>
             </div>
             <MapPin size={20} className="muted" />
@@ -172,7 +196,10 @@ export default function Discovery() {
                   </span>
                 </span>
               </label>
-              <Button type="submit" disabled={action.isPending}>
+              <Button
+                type="submit"
+                disabled={action.isPending || missingTavilyKey}
+              >
                 <Search data-icon="inline-start" />
                 {action.isPending ? "Iniciando…" : "Buscar empresas"}
               </Button>
@@ -203,12 +230,22 @@ export default function Discovery() {
             <Jobs />
           </div>
           <p className="helper">
-            A descoberta usa <span translate="no">Google Maps</span>; a
-            verificação complementa os dados com Google Search, conforme o
-            suporte do modelo de pesquisa. Tokens por minuto, chamadas de IA e
-            buscas têm quotas diferentes. Cada nova rodada pode consumir sua
-            quota; a chave e o modelo de pesquisa são os salvos em
-            Configurações.
+            {usesTavily ? (
+              <>
+                A fonte desta rodada é Tavily. Links do{" "}
+                <span translate="no">Google Maps</span> podem aparecer nas
+                fontes, mas o Tavily não é uma consulta direta ao Maps. Créditos
+                Tavily e chamadas Gemini têm quotas separadas.
+              </>
+            ) : (
+              <>
+                As ferramentas Google usadas dependem do suporte do modelo e da
+                quota da conta. Tokens por minuto, chamadas de IA e buscas têm
+                limites diferentes.
+              </>
+            )}{" "}
+            Cada nova rodada pode consumir sua quota; a fonte, as chaves e o
+            modelo de pesquisa são os salvos em Configurações.
           </p>
         </section>
       </div>

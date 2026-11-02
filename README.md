@@ -1,6 +1,6 @@
 # Jotage Prospect AI
 
-Prospecção B2B local com React, Fastify, SQLite/Drizzle e Gemini opcional. Interface em português, descoberta OpenStreetMap, auditoria HTML limitada, CRM e mensagens revisadas individualmente.
+Prospecção B2B com React, Fastify, SQLite/Drizzle, pesquisa web via Tavily ou ferramentas Google e análise Gemini. Interface em português, auditoria HTML limitada, CRM e mensagens revisadas individualmente.
 
 **Estado:** MVP local implementado e validado com testes automatizados. Consulte [IMPLEMENTATION_STATUS](docs/IMPLEMENTATION_STATUS.md) para distinguir verificações locais e integrações externas ainda não confirmadas ao vivo. Nenhuma credencial ou banco local é versionado. Nenhum envio automático ou pagamento é implementado.
 
@@ -53,7 +53,7 @@ Altere `APP_ORIGIN=http://127.0.0.1:3001` no `.env` e execute `npm start`. Abra 
 ## Fluxo de uso
 
 1. Configure seus serviços em **Configurações**.
-2. Em **Descobrir empresas**, confirme a cidade, UF, latitude/longitude, raio até 50 km e segmento. O Gemini pesquisa com Google Search e Google Maps; distâncias sem coordenadas confirmadas ficam sujeitas a revisão.
+2. Em **Descobrir empresas**, confirme a cidade, UF, latitude/longitude, raio até 50 km e segmento. A busca usa o provedor escolhido em Configurações; distâncias sem coordenadas confirmadas ficam sujeitas a revisão.
 3. Selecione os resultados no histórico. Empresas encontradas são persistidas com origem e data; campos desconhecidos ficam vazios.
 4. Abra uma empresa e clique em **Auditar site**. Veja evidências e limitações.
 5. Solicite **Analisar com Gemini**, se a integração estiver configurada. Sem ela, use auditoria, pontuação heurística e templates manuais.
@@ -69,11 +69,17 @@ Preencha chave e modelo em Configurações ou `GEMINI_API_KEY`/`GEMINI_MODEL` no
 
 Análises usam [saída JSON estruturada](https://ai.google.dev/gemini-api/docs/structured-output) e validação Zod. Dados recebidos de sites são não confiáveis; a IA não recebe ferramentas de execução. Recomendação gerada por IA continua sujeita à revisão humana, mesmo com validação estrutural.
 
-## Descoberta com Google Search e Google Maps
+## Descoberta com Tavily ou Google
 
-A descoberta usa Gemini com ferramentas oficiais Google Search e Google Maps, independentemente do OpenStreetMap. Há seleções separadas para análise (`model`) e pesquisa (`researchModel`, vazio acompanha análise). Para uso gratuito, selecione Gemini 2.5 Flash na pesquisa e Gemini 3.8 Flash na análise: as ferramentas Search e Maps do 3.8 exigem a camada paga, mesmo com tokens de texto gratuitos. No 2.5, descoberta usa Maps e a conferência individual usa Search em chamadas separadas; no 3.8 compatível, elas podem ser combinadas. Pesquisas usam até 32.768 tokens de saída e orçamento de raciocínio ampliado; análises Gemini 3 usam raciocínio alto. Esse é um teto, não consumo obrigatório. A quota de tokens por minuto não substitui as quotas e eventual cobrança das ferramentas do Google.
+Em **Configurações → Provedor de pesquisa**, selecione **Tavily** e cole sua chave no próprio site. A chave é criptografada separadamente da chave Gemini; deixar o campo vazio preserva a chave salva. O plano gratuito Tavily oferece [1.000 créditos mensais sem cartão](https://www.tavily.com/pricing). A integração usa a [busca básica](https://docs.tavily.com/documentation/api-reference/endpoint/search), de um crédito por consulta, sem ativação automática de planos pagos. Uma rodada com verificações individuais pode realizar várias consultas.
 
-Nome, localidade, site, telefone e email são aceitos apenas com evidência de grounding retornada pelo provedor. Resultados exibem as fontes e a atribuição Google Maps. Quando não há coordenadas verificáveis, a pertinência à região é textual e o raio é aproximado; a interface informa essa limitação.
+No modo Tavily, o Gemini organiza os documentos encontrados em uma chamada de texto, sem ferramentas Google pagas. Ele recebe resultados reais e deve citar trechos das fontes para nome, localidade e contatos. O backend confere essas referências antes de aceitar os dados. Tavily pesquisa a web; não equivale a uma consulta direta à API Google Maps. Links de Maps só são apresentados quando encontrados nas fontes, e campos não comprovados ficam vazios.
+
+O modo alternativo **Google Search e Maps** permanece disponível para chaves com acesso às ferramentas. As ferramentas do Gemini 3.8 exigem a camada paga, mesmo com tokens de texto gratuitos. Gemini 2.5 depende de disponibilidade efetiva na chave: um modelo listado pode ainda retornar 404 ao gerar conteúdo. No 2.5, descoberta usa Maps e conferência individual usa Search em chamadas separadas; no 3.8 compatível, podem ser combinadas.
+
+Há seleções separadas para análise (`model`) e organização da pesquisa (`researchModel`, vazio acompanha análise). Pesquisas usam até 32.768 tokens de saída e raciocínio ampliado; Gemini 3 usa raciocínio alto. Esse é um teto, não consumo obrigatório. O limite local padrão é de 20 chamadas Gemini por dia e inclui tentativas que falharam. Créditos Tavily, quotas de tokens e limites Google são independentes.
+
+Nome, localidade, site, telefone e email precisam de fontes verificáveis. No modo Google, são usados os metadados oficiais de grounding. Quando não há coordenadas verificáveis, a pertinência à região é textual e o raio é aproximado; a interface informa essa limitação.
 
 A opção **Verificar sites antes de enviar para revisão** (`excludeWithWebsite: true`) fica ativada por padrão. Empresas com site próprio confirmado saem da rodada; perfis sociais e diretórios não contam como site próprio. Um URL antigo ou bloqueado é pesquisado novamente. Apenas empresas cujo site não foi localizado após a pesquisa entram para revisão, sem garantir inexistência. Contatos comprovados são preenchidos no cadastro. Evidências insuficientes ficam inconclusivas; quota pausa a tarefa e falhas transitórias podem ser tentadas novamente.
 

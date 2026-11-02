@@ -15,6 +15,13 @@
       "when": 1793561108372,
       "tag": "0001_account_profile",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1793593729523,
+      "tag": "0002_tavily_search_key",
+      "breakpoints": true
     }
   ]
 }

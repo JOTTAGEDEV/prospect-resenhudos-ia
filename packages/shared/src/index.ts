@@ -106,6 +106,7 @@ export const settingsInput = z
     tone: z.enum(["Direto", "Consultivo", "Profissional"]),
     model: z.string().max(100),
     researchModel: z.string().max(100).optional(),
+    searchProvider: z.enum(["gemini", "tavily"]).optional(),
     dailyLimit: z.number().int().min(1).max(100),
     city: z.string().min(2).max(100),
     latitude: z.number().min(-90).max(90),
@@ -114,6 +115,8 @@ export const settingsInput = z
     weights: weightsSchema,
     apiKey: z.string().max(300).optional(),
     clearApiKey: z.boolean().optional(),
+    tavilyApiKey: z.string().max(512).optional(),
+    clearTavilyApiKey: z.boolean().optional(),
   })
   .strict();
 export type SearchInput = z.infer<typeof searchInput>;
@@ -122,6 +125,7 @@ export type Analysis = z.infer<typeof analysisSchema>;
 export type Weights = z.infer<typeof weightsSchema>;
 export type Settings = z.infer<typeof settingsInput> & {
   aiConfigured?: boolean;
+  searchConfigured?: boolean;
 };
 export type Lead = LeadInput & {
   id: string;
@@ -183,7 +187,7 @@ export const contactResearchSchema = z.object({
       z.object({
         title: z.string().max(500),
         url: z.url().refine((v) => /^https?:\/\//i.test(v)),
-        provider: z.enum(["Google Maps", "Google Search"]).optional(),
+        provider: z.enum(["Google Maps", "Google Search", "Tavily"]).optional(),
       }),
     )
     .min(1)

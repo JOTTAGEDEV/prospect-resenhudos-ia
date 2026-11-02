@@ -20,11 +20,11 @@ export function ContactResearchPanel({
     <section className="panel mb-6">
       <h2>Encontre os contatos que faltam</h2>
       <p className="helper mt-2 mb-4">
-        O Gemini pesquisa no Google Search para conferir site, endereço,
-        telefone e email comercial desta empresa. Quando disponíveis, links do
-        Google Maps ajudam a conferir a localização. Usa a chave e o modelo de
-        pesquisa das configurações e consome quota de IA e busca. Confira a
-        identidade e as fontes antes de salvar os dados.
+        A fonte definida em Configurações pesquisa na web e o Gemini confere
+        site, endereço, telefone e email comercial desta empresa. Links do
+        Google Maps aparecem quando encontrados nas fontes. A pesquisa consome a
+        quota da fonte e do Gemini separadamente. Confira a identidade e as
+        fontes antes de salvar os dados.
       </p>
       <Button
         variant="outline"
@@ -34,7 +34,7 @@ export function ContactResearchPanel({
         <Search />
         {action.isPending
           ? "Agendando pesquisa…"
-          : "Pesquisar contatos com Gemini"}
+          : "Pesquisar contatos na web"}
       </Button>
       <p className="helper mt-2">
         Acompanhe na Central de tarefas. Você pode sair da página enquanto a

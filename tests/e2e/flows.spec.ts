@@ -100,7 +100,24 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
   await page
     .getByLabel("Selecionar modelo", { exact: true })
     .selectOption("test-model");
-  await page.getByRole("button", { name: "Salvar chave e modelo" }).click();
+  await page
+    .getByLabel("Fonte da pesquisa", { exact: true })
+    .selectOption("tavily");
+  await page
+    .getByLabel("Tavily API key (deixe vazio para preservar)", { exact: true })
+    .fill("tvly-e2e-test-only");
+  const savedResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings") &&
+      response.request().method() === "PATCH",
+  );
+  await page
+    .getByRole("button", { name: "Salvar integrações e modelos" })
+    .click();
+  const savedSettings = await (await savedResponse).json();
+  expect(savedSettings.searchProvider).toBe("tavily");
+  expect(savedSettings.searchConfigured).toBe(true);
+  expect(JSON.stringify(savedSettings)).not.toContain("tvly-e2e-test-only");
   await expect(
     page.getByText("Configurações salvas", { exact: true }),
   ).toBeVisible();
@@ -108,6 +125,38 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
   await expect(
     page.getByLabel("Selecionar modelo", { exact: true }),
   ).toHaveValue("test-model");
+  await expect(
+    page.getByLabel("Tavily API key (deixe vazio para preservar)", {
+      exact: true,
+    }),
+  ).toHaveValue("");
+  await expect(
+    page.getByText("Chave Tavily configurada.", { exact: false }),
+  ).toBeVisible();
+  // Saving an empty secret field must preserve the existing key.
+  await page
+    .getByRole("button", { name: "Salvar integrações e modelos" })
+    .click();
+  await expect(
+    page.getByText("Configurações salvas", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByText("Chave Tavily configurada.", { exact: false }),
+  ).toBeVisible();
+  await page
+    .getByRole("checkbox", {
+      name: "Remover a chave Tavily salva ao salvar as configurações",
+    })
+    .check();
+  await page
+    .getByRole("button", { name: "Salvar integrações e modelos" })
+    .click();
+  await expect(
+    page.getByText("Falta configurar a chave Tavily para iniciar pesquisas.", {
+      exact: false,
+    }),
+  ).toBeVisible();
   await page.getByRole("link", { name: "Dashboard", exact: true }).click();
   await expect(
     page.getByRole("heading", { name: "Seu próximo cliente começa aqui." }),

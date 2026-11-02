@@ -49,6 +49,9 @@
   --on-primary: #ffffff;
   --border: #d5dde6;
 }
+:root [data-sonner-toaster][data-sonner-theme="light"] {
+  --success-text: #086139;
+}
 * {
   box-sizing: border-box;
 }

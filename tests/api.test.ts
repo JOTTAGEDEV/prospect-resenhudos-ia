@@ -1,4 +1,4 @@
-import { beforeAll, afterAll, describe, it, expect } from "vitest";
+import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
 import { eq } from "drizzle-orm";
 import { buildApp } from "../apps/api/src/app.js";
 import { openDatabase, stamp } from "../apps/api/src/database/db.js";
@@ -7,6 +7,7 @@ import { hashPassword } from "../apps/api/src/security/crypto.js";
 import { leadInput } from "@jotage/shared";
 import { saveLead } from "../apps/api/src/services/leads.js";
 import { Queue } from "../apps/api/src/workers/queue.js";
+import { defaults, updateSettings } from "../apps/api/src/services/settings.js";
 const database = await openDatabase(":memory:");
 let app: Awaited<ReturnType<typeof buildApp>>["app"];
 let queue: Queue;
@@ -399,5 +400,63 @@ describe("Fluxo integrado", () => {
         })
       ).statusCode,
     ).toBe(200);
+  });
+  it("retoma com uma nova chave de agendamento para não reutilizar a entrega anterior", async () => {
+    const paused = {
+      ...stamp(),
+      workspaceId,
+      kind: "research",
+      targetId: leadId,
+      status: "paused",
+      nextRunAt: 0,
+    };
+    await database.db.insert(s.jobs).values(paused).run();
+    const before = Date.now();
+    const response = await app.inject({
+      method: "POST",
+      url: `/api/jobs/${paused.id}/resume`,
+      headers: headers(),
+      payload: {},
+    });
+    expect(response.statusCode).toBe(200);
+    expect(response.json().status).toBe("pending");
+    expect(response.json().nextRunAt).toBeGreaterThanOrEqual(before);
+  });
+  it("recusa pesquisa sem as chaves configuradas antes de criar uma tarefa", async () => {
+    vi.stubEnv("TAVILY_API_KEY", "");
+    vi.stubEnv("GEMINI_API_KEY", "");
+    const { app: realApp } = await buildApp(database.db, { worker: false });
+    const before = await database.db.select().from(s.jobs).all();
+    try {
+      await updateSettings(database.db, workspaceId, {
+        ...defaults,
+        searchProvider: "tavily",
+        clearTavilyApiKey: true,
+        clearApiKey: true,
+      });
+      const request = {
+        method: "POST" as const,
+        url: "/api/searches",
+        headers: headers(),
+        payload: { excludeWithWebsite: true },
+      };
+      const missingTavily = await realApp.inject(request);
+      expect(missingTavily.statusCode).toBe(409);
+      expect(missingTavily.json().error).toContain("chave Tavily");
+      await updateSettings(database.db, workspaceId, {
+        ...defaults,
+        searchProvider: "tavily",
+        tavilyApiKey: "tvly-test-only",
+      });
+      const missingGemini = await realApp.inject(request);
+      expect(missingGemini.statusCode).toBe(409);
+      expect(missingGemini.json().error).toContain("chave Gemini");
+      expect(await database.db.select().from(s.jobs).all()).toHaveLength(
+        before.length,
+      );
+    } finally {
+      await realApp.close();
+      vi.unstubAllEnvs();
+    }
   });
 });

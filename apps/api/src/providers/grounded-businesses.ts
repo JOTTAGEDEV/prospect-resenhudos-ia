@@ -38,7 +38,7 @@ const normalized = (text: string) =>
 const includesValue = (text: string, value: string) =>
   !!normalized(value) && normalized(text).includes(normalized(value));
 
-function includesContact(
+export function includesContact(
   text: string,
   value: string,
   kind: "url" | "email" | "phone",
@@ -76,7 +76,7 @@ function includesContact(
   }
 }
 
-const includesCoordinate = (text: string, value: number) =>
+export const includesCoordinate = (text: string, value: number) =>
   (text.match(/[+-]?\d+(?:\.\d+)?/g) || []).some(
     (number) => Number(number) === value,
   );
@@ -209,7 +209,7 @@ function verifiedCompany(
   };
 }
 
-function prettyCompany(name: string, company: ContactResearch["company"]) {
+export function prettyCompany(name: string, company: ContactResearch["company"]) {
   if (!company) return name;
   return `${name}\nLocalidade: ${[company.address, company.city, company.state].filter(Boolean).join(", ") || "Não confirmada"}\nSite: ${company.website || "Não localizado"}\nTelefone: ${company.phone || "Não localizado"}\nEmail: ${company.email || "Não localizado"}\nGoogle Maps: ${company.mapsUrl || "Não localizado"}`;
 }
@@ -253,7 +253,7 @@ export function structuredContactReport(
   });
 }
 
-function distanceKm(a: number, b: number, c: number, d: number) {
+export function distanceKm(a: number, b: number, c: number, d: number) {
   const rad = Math.PI / 180;
   const h =
     Math.sin(((c - a) * rad) / 2) ** 2 +

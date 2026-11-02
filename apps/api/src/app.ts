@@ -626,6 +626,19 @@ export async function buildApp(
       Date.now() - Date.parse(cached.createdAt) < 24 * 60 * 60 * 1000
     )
       return { ...cached, cached: true };
+    if (!options.search && !options.ai) {
+      const settings = await getSettings(db, ws);
+      if (settings.searchProvider === "tavily" && !settings.searchConfigured)
+        throw new AppError(
+          409,
+          "Cole a chave Tavily em Configurações antes de pesquisar.",
+        );
+      if (!settings.aiConfigured)
+        throw new AppError(
+          409,
+          "Configure a chave Gemini em Configurações para organizar os resultados da pesquisa.",
+        );
+    }
     const active = await db
       .select()
       .from(s.jobs)
@@ -739,7 +752,13 @@ export async function buildApp(
   app.post("/api/jobs/:id/resume", async (request) => {
     const job = await db
       .update(s.jobs)
-      .set({ status: "pending", attempts: 0, nextRunAt: 0, error: null })
+      .set({
+        status: "pending",
+        attempts: 0,
+        nextRunAt: Date.now(),
+        error: null,
+        updatedAt: new Date().toISOString(),
+      })
       .where(
         and(
           eq(s.jobs.workspaceId, request.auth.workspaceId),
