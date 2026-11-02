@@ -124,7 +124,7 @@ export async function screenSearch(
       // A blocked or outdated URL is researched again instead of ending the check.
       if (!verifiedDirectly) {
         if (!ai.researchContacts)
-          throw new AppError(409, "Pesquisa Gemini indisponível.");
+          throw new AppError(409, "Pesquisa de contatos indisponível.");
         usedResearch = true;
         report = await ai.researchContacts(
           job.workspaceId,

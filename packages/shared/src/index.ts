@@ -106,6 +106,19 @@ export const settingsInput = z
     tone: z.enum(["Direto", "Consultivo", "Profissional"]),
     model: z.string().max(100),
     researchModel: z.string().max(100).optional(),
+    researchProvider: z.enum(["gemini", "openrouter"]).optional(),
+    openrouterModel: z
+      .string()
+      .trim()
+      .max(180)
+      .refine(
+        (value) =>
+          !value ||
+          value === "openrouter/free" ||
+          /^[a-z0-9][a-z0-9._-]*\/[a-z0-9][a-z0-9._/-]*:free$/.test(value),
+        "Escolha openrouter/free ou um modelo com sufixo :free.",
+      )
+      .optional(),
     searchProvider: z.enum(["gemini", "tavily"]).optional(),
     dailyLimit: z.number().int().min(1).max(100),
     city: z.string().min(2).max(100),
@@ -117,6 +130,8 @@ export const settingsInput = z
     clearApiKey: z.boolean().optional(),
     tavilyApiKey: z.string().max(512).optional(),
     clearTavilyApiKey: z.boolean().optional(),
+    openrouterApiKey: z.string().max(512).optional(),
+    clearOpenrouterApiKey: z.boolean().optional(),
   })
   .strict();
 export type SearchInput = z.infer<typeof searchInput>;
@@ -126,6 +141,7 @@ export type Weights = z.infer<typeof weightsSchema>;
 export type Settings = z.infer<typeof settingsInput> & {
   aiConfigured?: boolean;
   searchConfigured?: boolean;
+  openrouterConfigured?: boolean;
 };
 export type Lead = LeadInput & {
   id: string;

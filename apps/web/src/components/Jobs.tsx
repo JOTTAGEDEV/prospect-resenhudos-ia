@@ -53,7 +53,7 @@ export function Jobs({ targetId }: { targetId?: string }) {
                   search: "Pesquisa de empresas",
                   audit: "Auditoria do site",
                   analyze: "Análise Gemini",
-                  research: "Pesquisa de contatos com Gemini",
+                  research: "Pesquisa de contatos na web",
                 }[job.kind] || job.kind}
               </strong>
               <Badge variant="secondary">

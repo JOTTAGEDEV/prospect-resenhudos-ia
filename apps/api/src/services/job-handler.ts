@@ -83,7 +83,13 @@ export function createHandler(
         duplicates,
         saved: found.length - duplicates,
         attribution: discovery.report
-          ? "Google Search · Google Maps"
+          ? [
+              ...new Set(
+                discovery.report.sources
+                  .map((source) => source.provider)
+                  .filter(Boolean),
+              ),
+            ].join(" · ") || "Fontes do relatório"
           : "Provedor de teste",
       };
     }
@@ -92,7 +98,7 @@ export function createHandler(
       if (!ai.researchContacts)
         throw new AppError(
           409,
-          "Pesquisa Gemini não disponível neste provedor.",
+          "Pesquisa de contatos não disponível neste provedor.",
         );
       await progress(10);
       const result = await ai.researchContacts(

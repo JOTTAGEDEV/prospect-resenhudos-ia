@@ -92,7 +92,7 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
     }),
   );
   await page
-    .getByLabel("Chave da API (deixe vazio para preservar)", { exact: true })
+    .getByLabel("Chave Gemini API (deixe vazio para preservar)", { exact: true })
     .fill("test-key-only");
   await page
     .getByRole("button", { name: "Carregar modelos da minha conta" })
@@ -114,7 +114,12 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
   await page
     .getByRole("button", { name: "Salvar integrações e modelos" })
     .click();
-  const savedSettings = await (await savedResponse).json();
+  const saved = await savedResponse;
+  const savedInput = saved.request().postDataJSON();
+  expect(savedInput).not.toHaveProperty("aiConfigured");
+  expect(savedInput).not.toHaveProperty("searchConfigured");
+  expect(savedInput).not.toHaveProperty("openrouterConfigured");
+  const savedSettings = await saved.json();
   expect(savedSettings.searchProvider).toBe("tavily");
   expect(savedSettings.searchConfigured).toBe(true);
   expect(JSON.stringify(savedSettings)).not.toContain("tvly-e2e-test-only");
@@ -144,6 +149,134 @@ test("login, descoberta, auditoria, IA, mensagem, CRM e layout responsivo", asyn
   await expect(
     page.getByText("Chave Tavily configurada.", { exact: false }),
   ).toBeVisible();
+  await page
+    .getByLabel("IA da pesquisa", { exact: true })
+    .selectOption("openrouter");
+  await expect(
+    page.getByLabel("Fonte da pesquisa", { exact: true }),
+  ).toHaveValue("tavily");
+  await expect(
+    page.getByLabel("Fonte da pesquisa", { exact: true }).locator("option"),
+  ).toHaveCount(1);
+  await expect(
+    page.getByLabel("Modelo da pesquisa", { exact: true }),
+  ).toHaveCount(0);
+  await expect(
+    page.getByLabel("Modelo gratuito da pesquisa", { exact: true }),
+  ).toHaveValue("openrouter/free");
+  await page
+    .getByLabel("OpenRouter API key (deixe vazio para preservar)", {
+      exact: true,
+    })
+    .fill("sk-or-e2e-test-only");
+  const openrouterResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/settings") &&
+      response.request().method() === "PATCH",
+  );
+  await page
+    .getByRole("button", { name: "Salvar integrações e modelos" })
+    .click();
+  const openrouterSaved = await openrouterResponse;
+  const openrouterInput = openrouterSaved.request().postDataJSON();
+  expect(openrouterInput).not.toHaveProperty("aiConfigured");
+  expect(openrouterInput).not.toHaveProperty("searchConfigured");
+  expect(openrouterInput).not.toHaveProperty("openrouterConfigured");
+  const openrouterSettings = await openrouterSaved.json();
+  expect(openrouterSettings.researchProvider).toBe("openrouter");
+  expect(openrouterSettings.openrouterModel).toBe("openrouter/free");
+  expect(openrouterSettings.openrouterConfigured).toBe(true);
+  expect(openrouterSettings.model).toBe("test-model");
+  expect(JSON.stringify(openrouterSettings)).not.toContain(
+    "sk-or-e2e-test-only",
+  );
+  await expect(
+    page.getByText("Configurações salvas", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(page.getByLabel("IA da pesquisa", { exact: true })).toHaveValue(
+    "openrouter",
+  );
+  await expect(
+    page.getByLabel("OpenRouter API key (deixe vazio para preservar)", {
+      exact: true,
+    }),
+  ).toHaveValue("");
+  await expect(
+    page.getByText("Chave OpenRouter configurada.", { exact: false }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "Salvar integrações e modelos" })
+    .click();
+  await expect(
+    page.getByText("Configurações salvas", { exact: true }),
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByText("Chave OpenRouter configurada.", { exact: false }),
+  ).toBeVisible();
+  await page.route("**/api/settings/test-research", (route) =>
+    route.fulfill({ json: { ok: true } }),
+  );
+  await page
+    .getByRole("button", {
+      name: "Testar IA da pesquisa salva (consome 1 chamada)",
+    })
+    .click();
+  await expect(
+    page.getByText("Modelo de pesquisa respondeu", { exact: true }),
+  ).toBeVisible();
+  // Research availability depends on OpenRouter and Tavily, independently of the Gemini key.
+  await page.route("**/api/settings", (route) => {
+    if (route.request().method() === "GET") {
+      return route.fulfill({
+        json: { ...openrouterSettings, aiConfigured: false },
+      });
+    }
+    return route.continue();
+  });
+  await page
+    .getByRole("link", { name: "Descobrir empresas", exact: true })
+    .first()
+    .click();
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "Buscar empresas" }),
+  ).toBeEnabled();
+  await expect(
+    page.getByText("Tavily + OpenRouter", { exact: false }),
+  ).toBeVisible();
+  await page.unroute("**/api/settings");
+  await page.getByRole("link", { name: "Configurações", exact: true }).click();
+  await page
+    .getByRole("checkbox", {
+      name: "Remover a chave OpenRouter salva ao salvar as configurações",
+    })
+    .check();
+  await page
+    .getByRole("button", { name: "Salvar integrações e modelos" })
+    .click();
+  await expect(
+    page.getByText("Falta configurar a chave OpenRouter para pesquisar.", {
+      exact: false,
+    }),
+  ).toBeVisible();
+  await page
+    .getByRole("link", { name: "Descobrir empresas", exact: true })
+    .first()
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Buscar empresas" }),
+  ).toBeDisabled();
+  await expect(
+    page.getByText("Configure a chave OpenRouter para pesquisar", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: "Configurações", exact: true }).click();
+  await page
+    .getByLabel("IA da pesquisa", { exact: true })
+    .selectOption("gemini");
   await page
     .getByRole("checkbox", {
       name: "Remover a chave Tavily salva ao salvar as configurações",

@@ -52,9 +52,14 @@ export default function Discovery() {
     enabled: !!selected,
     refetchInterval: 3000,
   });
-  const usesTavily = settings.data?.searchProvider === "tavily";
+  const usesOpenRouter = settings.data?.researchProvider === "openrouter";
+  const researchAI = usesOpenRouter ? "OpenRouter" : "Gemini";
+  const usesTavily =
+    usesOpenRouter || settings.data?.searchProvider === "tavily";
   const missingTavilyKey =
     usesTavily && settings.data?.searchConfigured === false;
+  const missingOpenRouterKey =
+    usesOpenRouter && settings.data?.openrouterConfigured === false;
   return (
     <>
       <PageHead
@@ -62,7 +67,7 @@ export default function Discovery() {
         title="Encontre sua próxima oportunidade."
         description={
           usesTavily
-            ? "O Tavily pesquisa empresas na web e o Gemini organiza sites, localidade e contatos comerciais com fontes."
+            ? `O Tavily pesquisa empresas na web e o ${researchAI} organiza sites, localidade e contatos comerciais com fontes.`
             : settings.data
               ? "O Gemini usa as ferramentas Google disponíveis na sua conta para localizar empresas e conferir sites e contatos com fontes."
               : "Pesquise empresas, sites e contatos comerciais com a fonte e o modelo definidos nas configurações."
@@ -77,7 +82,21 @@ export default function Discovery() {
             <Link to="/configuracoes" className="underline">
               Abrir Configurações e colar a chave
             </Link>
-            . A chave Gemini será usada para interpretar os resultados.
+            . O {researchAI} será usado para interpretar os resultados.
+          </AlertDescription>
+        </Alert>
+      )}
+      {missingOpenRouterKey && (
+        <Alert className="mb-6">
+          <Info />
+          <AlertTitle>Configure a chave OpenRouter para pesquisar</AlertTitle>
+          <AlertDescription>
+            O OpenRouter está selecionado, mas a chave ainda não foi salva.{" "}
+            <Link to="/configuracoes" className="underline">
+              Abrir Configurações e colar a chave
+            </Link>
+            . A pesquisa usa essa chave; a chave Gemini fica para análises e
+            mensagens.
           </AlertDescription>
         </Alert>
       )}
@@ -87,8 +106,8 @@ export default function Discovery() {
             <div>
               <h2>Onde vamos procurar?</h2>
               <p className="helper">
-                {usesTavily ? "Tavily + Gemini" : "Pesquisa com Gemini"} · região
-                de até 50 km
+                {usesTavily ? `Tavily + ${researchAI}` : "Pesquisa com Gemini"}{" "}
+                · região de até 50 km
               </p>
             </div>
             <MapPin size={20} className="muted" />
@@ -198,7 +217,9 @@ export default function Discovery() {
               </label>
               <Button
                 type="submit"
-                disabled={action.isPending || missingTavilyKey}
+                disabled={
+                  action.isPending || missingTavilyKey || missingOpenRouterKey
+                }
               >
                 <Search data-icon="inline-start" />
                 {action.isPending ? "Iniciando…" : "Buscar empresas"}
@@ -235,7 +256,7 @@ export default function Discovery() {
                 A fonte desta rodada é Tavily. Links do{" "}
                 <span translate="no">Google Maps</span> podem aparecer nas
                 fontes, mas o Tavily não é uma consulta direta ao Maps. Créditos
-                Tavily e chamadas Gemini têm quotas separadas.
+                Tavily e chamadas {researchAI} têm quotas separadas.
               </>
             ) : (
               <>

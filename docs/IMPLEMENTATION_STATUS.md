@@ -9,6 +9,7 @@
 - [x] Cadastro, edição, exclusão, notas, tags, busca, filtros, ordenação e paginação de leads.
 - [x] Pesquisa Tavily + Gemini ou ferramentas Google, com fontes verificadas; Overpass preservado apenas como adaptador de compatibilidade.
 - [x] Chave Tavily configurável na interface e criptografada separadamente, sem retorno do segredo ao navegador.
+- [x] OpenRouter gratuito como IA alternativa da pesquisa, com chave própria criptografada, roteamento a preço zero e bloqueio de modelos pagos. Análises e mensagens permanecem no Gemini.
 - [x] Raio de até 50 km, verificação de sites antes da revisão e etapas persistentes com janela de dez minutos.
 - [x] Usuário e nome de exibição editáveis; limpeza explícita de leads e históricos preserva configurações, chaves e quota.
 - [x] Importação CSV atômica e exportação com proteção contra fórmulas.
@@ -27,10 +28,11 @@
 
 ## Verificações executadas
 
-- [x] TypeScript, ESLint, **121 testes Vitest** e builds web/API passaram. A integração Tavily é coberta por testes de transporte, validação de trechos reais, identidade, contatos e separação das ferramentas Google.
+- [x] TypeScript, ESLint, **149 testes Vitest** e builds web/API passaram. As integrações Tavily/OpenRouter são cobertas por transporte, validação de fontes, chaves isoladas, cotas, teste de pesquisa sem busca e ausência de redirecionamento pago.
 - [x] `npm run test:e2e`: fluxo integrado Chromium passou, com banco e servidor exclusivos de teste.
 - [x] E2E: login → descoberta mockada → auditoria mockada → IA mockada → mensagem → aprovação → pipeline → reload → cadastro manual → configurações.
 - [x] E2E: salvar chave Tavily fictícia, recarregar sem expor o segredo, preservar com campo vazio e remover explicitamente.
+- [x] E2E: selecionar OpenRouter força Tavily, salva/preserva/remove chave própria sem expô-la, permite pesquisa sem chave Gemini e testa a IA separadamente com resposta mockada.
 - [x] E2E: sem erros JavaScript ou overflow nos tamanhos móveis/tablet testados; modo reduced-motion.
 - [x] Axe no dashboard com dados, temas escuro/claro: nenhuma violação nas regras WCAG 2 A/AA e 2.1 AA executadas. Não equivale a certificação de todas as telas.
 - [x] Login e dashboard também executados no ambiente real `http://127.0.0.1:5173`, com banco persistente e sem mocks.
@@ -40,6 +42,8 @@
 - [x] Setup repetido preserva usuários e senhas existentes.
 
 ## Dependências externas não confirmadas
+
+- [ ] OpenRouter ao vivo: aguarda a chave do usuário no site. O roteador gratuito e o teste de conexão foram validados com respostas simuladas; nenhuma chamada real OpenRouter foi feita sem essa chave.
 
 - [ ] Pesquisa Tavily + Gemini ao vivo completa: chave Tavily cadastrada e fontes retornadas. O 3.1 respondeu, mas a primeira resposta não comprovou identidade/localidade suficientes; o 3.8 retornou HTTP 503. A pesquisa solicita conteúdo completo das páginas e JSON por instrução, com contrato e citações validados no backend. Falhas de evidência informam contagens de rejeição sem expor dados pessoais.
 - [x] Disponibilidade Google investigada: a chave recusou a geração do Gemini 2.5 com 404; as ferramentas Search/Maps do 3.8 não estão incluídas na camada gratuita. Não atribuímos essa recusa ao esgotamento das 20 chamadas diárias.

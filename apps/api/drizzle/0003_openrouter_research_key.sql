@@ -1,0 +1,1 @@
+ALTER TABLE `integration_settings` ADD `encrypted_openrouter_key` text;

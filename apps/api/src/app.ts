@@ -633,7 +633,18 @@ export async function buildApp(
           409,
           "Cole a chave Tavily em Configurações antes de pesquisar.",
         );
-      if (!settings.aiConfigured)
+      if (settings.researchProvider === "openrouter") {
+        if (settings.searchProvider !== "tavily")
+          throw new AppError(
+            409,
+            "Selecione Tavily como fonte para pesquisar com OpenRouter.",
+          );
+        if (!settings.openrouterConfigured)
+          throw new AppError(
+            409,
+            "Cole a chave OpenRouter em Configurações antes de pesquisar.",
+          );
+      } else if (!settings.aiConfigured)
         throw new AppError(
           409,
           "Configure a chave Gemini em Configurações para organizar os resultados da pesquisa.",
@@ -964,6 +975,15 @@ export async function buildApp(
       category: "Teste técnico",
       audit: null,
     });
+    return { ok: true };
+  });
+  app.post("/api/settings/test-research", async (request) => {
+    if (!ai.testResearch)
+      throw new AppError(
+        409,
+        "O provedor de pesquisa não oferece teste de conexão.",
+      );
+    await ai.testResearch(request.auth.workspaceId);
     return { ok: true };
   });
   app.post("/api/settings/models", async (request) => {

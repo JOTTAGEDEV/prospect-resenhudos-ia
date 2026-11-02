@@ -61,6 +61,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
     [key, setKey] = useState(""),
     [tavilyKey, setTavilyKey] = useState(""),
     [clearTavilyKey, setClearTavilyKey] = useState(false),
+    [openrouterKey, setOpenrouterKey] = useState(""),
+    [clearOpenrouterKey, setClearOpenrouterKey] = useState(false),
     [theme, setTheme] = useState(
       localStorage.getItem("jotage-theme-v1") || "dark",
     );
@@ -69,11 +71,18 @@ function SettingsForm({ initial }: { initial: Settings }) {
     setKey("");
     setTavilyKey("");
     setClearTavilyKey(false);
+    setOpenrouterKey("");
+    setClearOpenrouterKey(false);
     toast.success("Configurações salvas");
   });
   const action = useAction(() => toast.success("Operação concluída"));
+  const testResearch = useAction(() =>
+    toast.success("Modelo de pesquisa respondeu"),
+  );
   const update = <K extends keyof Settings>(field: K, value: Settings[K]) =>
     setData((d) => ({ ...d, [field]: value }));
+  const usesOpenRouter = data.researchProvider === "openrouter";
+  const usesTavily = usesOpenRouter || data.searchProvider === "tavily";
   return (
     <div className="stack settings-section">
       <form
@@ -83,6 +92,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           const {
             aiConfigured: _configured,
             searchConfigured: _searchConfigured,
+            openrouterConfigured: _openrouterConfigured,
             ...input
           } = data;
           save.mutate({
@@ -93,6 +103,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
               ...(key ? { apiKey: key } : {}),
               ...(tavilyKey.trim() ? { tavilyApiKey: tavilyKey.trim() } : {}),
               ...(clearTavilyKey ? { clearTavilyApiKey: true } : {}),
+              ...(openrouterKey.trim()
+                ? { openrouterApiKey: openrouterKey.trim() }
+                : {}),
+              ...(clearOpenrouterKey ? { clearOpenrouterApiKey: true } : {}),
             },
           });
         }}
@@ -134,11 +148,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </section>
         <section className="panel">
           <div className="panel-head">
-            <h2>Inteligência artificial · Gemini</h2>
+            <h2>Inteligência artificial e pesquisa</h2>
             <span className="helper">
-              {data.aiConfigured
-                ? "Chave configurada"
-                : "Sem chave configurada"}
+              {data.aiConfigured ? "Gemini configurado" : "Gemini sem chave"}
             </span>
           </div>
           <FieldGroup>
@@ -147,7 +159,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
               Tudo é configurado aqui, sem editar arquivos.
             </p>
             <TextField
-              label="Chave da API (deixe vazio para preservar)"
+              label="Chave Gemini API (deixe vazio para preservar)"
               value={key}
               onChange={setKey}
               type="password"
@@ -202,8 +214,32 @@ function SettingsForm({ initial }: { initial: Settings }) {
               Descoberta e pesquisa de contatos
             </p>
             <SelectField
+              label="IA da pesquisa"
+              value={data.researchProvider || "gemini"}
+              onChange={(value) =>
+                setData((current) => ({
+                  ...current,
+                  researchProvider: value as "gemini" | "openrouter",
+                  ...(value === "openrouter"
+                    ? {
+                        searchProvider: "tavily",
+                        openrouterModel:
+                          current.openrouterModel || "openrouter/free",
+                      }
+                    : {}),
+                }))
+              }
+              options={[
+                { value: "gemini", label: "Gemini" },
+                {
+                  value: "openrouter",
+                  label: "OpenRouter · modelos gratuitos",
+                },
+              ]}
+            />
+            <SelectField
               label="Fonte da pesquisa"
-              value={data.searchProvider || "gemini"}
+              value={usesTavily ? "tavily" : "gemini"}
               onChange={(value) =>
                 update("searchProvider", value as "gemini" | "tavily")
               }
@@ -212,16 +248,19 @@ function SettingsForm({ initial }: { initial: Settings }) {
                   value: "tavily",
                   label: "Tavily · plano gratuito (recomendado)",
                 },
-                { value: "gemini", label: "Ferramentas Google do Gemini" },
+                ...(!usesOpenRouter
+                  ? [{ value: "gemini", label: "Ferramentas Google do Gemini" }]
+                  : []),
               ]}
             />
-            {data.searchProvider === "tavily" ? (
+            {usesTavily ? (
               <>
                 <p className="helper">
-                  O Tavily pesquisa na web; o Gemini organiza e verifica as
-                  informações encontradas. Essa opção não usa as ferramentas
-                  pagas de Google Search/Maps do Gemini. Links do Google Maps só
-                  aparecem quando encontrados nas fontes.
+                  O Tavily pesquisa na web;{" "}
+                  {usesOpenRouter ? "o OpenRouter" : "o Gemini"} organiza e
+                  verifica as informações encontradas. Essa opção não usa as
+                  ferramentas pagas de Google Search/Maps do Gemini. Links do
+                  Google Maps só aparecem quando encontrados nas fontes.
                 </p>
                 <p className="helper">
                   {data.searchConfigured
@@ -282,64 +321,162 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 ferramentas de pesquisa.
               </p>
             )}
-            <SelectField
-              label="Modelo da pesquisa"
-              value={data.researchModel || ""}
-              onChange={(v) => update("researchModel", v)}
-              options={[
-                { value: "", label: "Usar o mesmo modelo de análise" },
-                {
-                  value: "gemini-2.5-flash",
-                  label:
-                    "Gemini 2.5 Flash · depende da disponibilidade da conta",
-                },
-                ...(data.researchModel &&
-                data.researchModel !== "gemini-2.5-flash" &&
-                !models.some((model) => model.value === data.researchModel)
-                  ? [{ value: data.researchModel, label: data.researchModel }]
-                  : []),
-                ...models.filter((model) => model.value !== "gemini-2.5-flash"),
-              ]}
-            />
-            <TextField
-              label="Identificador do modelo de pesquisa"
-              value={data.researchModel || ""}
-              onChange={(v) =>
-                update("researchModel", v.trim().replace(/^models\//, ""))
-              }
-              placeholder="Vazio para usar o modelo de análise"
-            />
-            {data.searchProvider === "tavily" ? (
-              <p className="helper">
-                Com Tavily, o modelo de pesquisa interpreta o material coletado
-                sem ativar as ferramentas Google. O Gemini 3.8 Flash pode ser
-                usado com raciocínio alto e até 32.768 tokens de saída por
-                chamada, conforme a necessidade. A quota do Gemini continua
-                separada dos créditos Tavily.
-              </p>
+            {usesOpenRouter ? (
+              <>
+                <p className="helper">
+                  {data.openrouterConfigured
+                    ? "Chave OpenRouter configurada."
+                    : "Falta configurar a chave OpenRouter para pesquisar."}{" "}
+                  <a
+                    href="https://openrouter.ai/settings/keys"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Obter chave no OpenRouter ↗
+                  </a>
+                </p>
+                <TextField
+                  label="OpenRouter API key (deixe vazio para preservar)"
+                  type="password"
+                  value={openrouterKey}
+                  onChange={(value) => {
+                    setOpenrouterKey(value);
+                    if (value) setClearOpenrouterKey(false);
+                  }}
+                />
+                {data.openrouterConfigured && (
+                  <label className="flex items-start gap-3 text-sm">
+                    <input
+                      type="checkbox"
+                      className="mt-1"
+                      checked={clearOpenrouterKey}
+                      onChange={(event) => {
+                        setClearOpenrouterKey(event.target.checked);
+                        if (event.target.checked) setOpenrouterKey("");
+                      }}
+                    />
+                    <span>
+                      Remover a chave OpenRouter salva ao salvar as
+                      configurações
+                    </span>
+                  </label>
+                )}
+                <SelectField
+                  label="Modelo gratuito da pesquisa"
+                  value={data.openrouterModel || "openrouter/free"}
+                  onChange={(value) => update("openrouterModel", value)}
+                  options={[
+                    {
+                      value: "openrouter/free",
+                      label: "Roteador gratuito · openrouter/free",
+                    },
+                    ...(data.openrouterModel &&
+                    data.openrouterModel !== "openrouter/free"
+                      ? [
+                          {
+                            value: data.openrouterModel,
+                            label: data.openrouterModel,
+                          },
+                        ]
+                      : []),
+                  ]}
+                />
+                <TextField
+                  label="Identificador gratuito do modelo OpenRouter"
+                  value={data.openrouterModel || "openrouter/free"}
+                  onChange={(value) => update("openrouterModel", value.trim())}
+                  placeholder="openrouter/free ou um identificador terminado em :free"
+                />
+                <p className="helper">
+                  O roteador escolhe um modelo gratuito disponível. Você também
+                  pode informar um modelo terminado em :free; modelos pagos são
+                  bloqueados. As chaves ficam criptografadas e não são exibidas
+                  novamente. O plano gratuito permite até 50 chamadas por dia e
+                  20 por minuto; a disponibilidade varia conforme o modelo.{" "}
+                  <a
+                    href="https://openrouter.ai/collections/free-models"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Conferir modelos e limites gratuitos ↗
+                  </a>
+                </p>
+                <p className="helper">
+                  O Tavily fornece as fontes e o OpenRouter interpreta os
+                  resultados. Análises e mensagens continuam no modelo Gemini
+                  selecionado acima, com uma quota separada.
+                </p>
+              </>
             ) : (
-              <p className="helper">
-                O Gemini 2.5 Flash consulta Google Maps para descobrir empresas
-                e usa Google Search em outra etapa para complementar contatos e
-                conferir sites. Usa raciocínio dinâmico e até 32.768 tokens de
-                saída por chamada, conforme a necessidade. A disponibilidade
-                precisa ser confirmada na sua conta; projetos sem acesso podem
-                receber erro de modelo indisponível.
-              </p>
+              <>
+                <SelectField
+                  label="Modelo da pesquisa"
+                  value={data.researchModel || ""}
+                  onChange={(v) => update("researchModel", v)}
+                  options={[
+                    { value: "", label: "Usar o mesmo modelo de análise" },
+                    {
+                      value: "gemini-2.5-flash",
+                      label:
+                        "Gemini 2.5 Flash · depende da disponibilidade da conta",
+                    },
+                    ...(data.researchModel &&
+                    data.researchModel !== "gemini-2.5-flash" &&
+                    !models.some((model) => model.value === data.researchModel)
+                      ? [
+                          {
+                            value: data.researchModel,
+                            label: data.researchModel,
+                          },
+                        ]
+                      : []),
+                    ...models.filter(
+                      (model) => model.value !== "gemini-2.5-flash",
+                    ),
+                  ]}
+                />
+                <TextField
+                  label="Identificador do modelo de pesquisa"
+                  value={data.researchModel || ""}
+                  onChange={(v) =>
+                    update("researchModel", v.trim().replace(/^models\//, ""))
+                  }
+                  placeholder="Vazio para usar o modelo de análise"
+                />
+                {data.searchProvider === "tavily" ? (
+                  <p className="helper">
+                    Com Tavily, o modelo de pesquisa interpreta o material
+                    coletado sem ativar as ferramentas Google. O Gemini 3.8
+                    Flash pode ser usado com raciocínio alto e até 32.768 tokens
+                    de saída por chamada, conforme a necessidade. A quota do
+                    Gemini continua separada dos créditos Tavily.
+                  </p>
+                ) : (
+                  <p className="helper">
+                    O Gemini 2.5 Flash consulta Google Maps para descobrir
+                    empresas e usa Google Search em outra etapa para
+                    complementar contatos e conferir sites. Usa raciocínio
+                    dinâmico e até 32.768 tokens de saída por chamada, conforme
+                    a necessidade. A disponibilidade precisa ser confirmada na
+                    sua conta; projetos sem acesso podem receber erro de modelo
+                    indisponível.
+                  </p>
+                )}
+                <p className="helper">
+                  A API gratuita do Gemini 3.8 Flash não inclui pesquisa com
+                  Google Search ou Google Maps. Com Tavily, a busca vem de outra
+                  fonte e o 3.8 pode interpretar os resultados, respeitando sua
+                  quota. Esta seleção não ativa faturamento.{" "}
+                  <a
+                    href="https://ai.google.dev/gemini-api/docs/pricing"
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Conferir disponibilidade e quotas oficiais ↗
+                  </a>
+                </p>
+              </>
             )}
-            <p className="helper">
-              A API gratuita do Gemini 3.8 Flash não inclui pesquisa com Google
-              Search ou Google Maps. Com Tavily, a busca vem de outra fonte e o
-              3.8 pode interpretar os resultados, respeitando sua quota. Esta
-              seleção não ativa faturamento.{" "}
-              <a
-                href="https://ai.google.dev/gemini-api/docs/pricing"
-                target="_blank"
-                rel="noreferrer"
-              >
-                Conferir disponibilidade e quotas oficiais ↗
-              </a>
-            </p>
             <TextField
               label="Teto diário de chamadas"
               type="number"
@@ -348,19 +485,41 @@ function SettingsForm({ initial }: { initial: Settings }) {
             />
             <Alert>
               <KeyRound />
-              <AlertTitle>Pesquisa conectada à sua conta Gemini</AlertTitle>
+              <AlertTitle>Chaves e quotas separadas</AlertTitle>
               <AlertDescription>
                 A descoberta e a pesquisa de contatos precisam da integração.
                 Auditoria técnica, CRM e templates manuais continuam disponíveis
                 sem ela. As chaves ficam criptografadas no backend. TPM é o
-                limite de tokens por minuto, não um saldo: chamadas Gemini,
-                ferramentas Google e créditos Tavily têm limites separados.
+                limite de tokens por minuto, não um saldo. Gemini, OpenRouter e
+                Tavily têm limites separados, além do teto diário deste site.
                 Confira as quotas das suas contas antes de iniciar uma rodada.
               </AlertDescription>
             </Alert>
             <Button type="submit" disabled={save.isPending}>
               {save.isPending ? "Salvando…" : "Salvar integrações e modelos"}
             </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={
+                testResearch.isPending ||
+                (usesOpenRouter
+                  ? !data.openrouterConfigured
+                  : !data.aiConfigured)
+              }
+              onClick={() =>
+                testResearch.mutate({ path: "/settings/test-research" })
+              }
+            >
+              {testResearch.isPending
+                ? "Testando IA da pesquisa…"
+                : "Testar IA da pesquisa salva (consome 1 chamada)"}
+            </Button>
+            <p className="helper">
+              Salve antes de testar. Este teste consulta apenas a IA da
+              pesquisa, sem consumir créditos Tavily nem procurar empresas.
+            </p>
+            <FormError error={testResearch.error} />
             <Button
               type="button"
               variant="outline"

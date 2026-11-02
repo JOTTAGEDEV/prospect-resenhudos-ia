@@ -264,6 +264,7 @@ export const settings = sqliteTable("integration_settings", {
   data: text("data", { mode: "json" }).$type<Settings>().notNull(),
   encryptedKey: text("encrypted_key"),
   encryptedSearchKey: text("encrypted_search_key"),
+  encryptedOpenRouterKey: text("encrypted_openrouter_key"),
 });
 export const usage = sqliteTable("api_usage", {
   ...common(),

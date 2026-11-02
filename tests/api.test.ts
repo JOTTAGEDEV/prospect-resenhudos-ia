@@ -425,6 +425,7 @@ describe("Fluxo integrado", () => {
   it("recusa pesquisa sem as chaves configuradas antes de criar uma tarefa", async () => {
     vi.stubEnv("TAVILY_API_KEY", "");
     vi.stubEnv("GEMINI_API_KEY", "");
+    vi.stubEnv("OPENROUTER_API_KEY", "");
     const { app: realApp } = await buildApp(database.db, { worker: false });
     const before = await database.db.select().from(s.jobs).all();
     try {
@@ -454,9 +455,60 @@ describe("Fluxo integrado", () => {
       expect(await database.db.select().from(s.jobs).all()).toHaveLength(
         before.length,
       );
+      await updateSettings(database.db, workspaceId, {
+        ...defaults,
+        researchProvider: "openrouter",
+        searchProvider: "tavily",
+        tavilyApiKey: "tvly-test-only",
+        clearOpenrouterApiKey: true,
+      });
+      const missingOpenRouter = await realApp.inject(request);
+      expect(missingOpenRouter.statusCode).toBe(409);
+      expect(missingOpenRouter.json().error).toContain("chave OpenRouter");
+      await updateSettings(database.db, workspaceId, {
+        ...defaults,
+        researchProvider: "openrouter",
+        searchProvider: "tavily",
+        openrouterApiKey: "openrouter-test-only",
+      });
+      await database.db
+        .update(s.searches)
+        .set({ createdAt: "2000-01-01T00:00:00.000Z" })
+        .run();
+      const configuredResearch = await realApp.inject(request);
+      expect(configuredResearch.statusCode).toBe(200);
+      expect(configuredResearch.json().status).toBe("pending");
     } finally {
       await realApp.close();
       vi.unstubAllEnvs();
+    }
+  });
+  it("testa a IA da pesquisa separadamente da análise", async () => {
+    let testedWorkspace = "";
+    const { app: researchApp } = await buildApp(database.db, {
+      worker: false,
+      ai: {
+        testResearch: async (id) => {
+          testedWorkspace = id;
+        },
+        analyzeBusiness: async () => {
+          throw new Error("A análise não deve ser chamada");
+        },
+        generateOutreach: async () => "Não utilizado",
+      },
+    });
+    try {
+      const response = await researchApp.inject({
+        method: "POST",
+        url: "/api/settings/test-research",
+        headers: headers(),
+        payload: {},
+      });
+      expect(response.statusCode).toBe(200);
+      expect(response.json()).toEqual({ ok: true });
+      expect(testedWorkspace).toBe(workspaceId);
+    } finally {
+      await researchApp.close();
     }
   });
 });

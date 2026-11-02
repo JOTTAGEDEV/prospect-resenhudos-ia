@@ -16,6 +16,8 @@ export const defaults: Settings = {
   tone: "Consultivo",
   model: process.env.GEMINI_MODEL || "gemini-3.8-flash",
   researchModel: process.env.GEMINI_RESEARCH_MODEL || "",
+  researchProvider: "gemini",
+  openrouterModel: "openrouter/free",
   searchProvider: "gemini",
   dailyLimit: Number(process.env.MAX_AI_REQUESTS_PER_DAY || 20),
   city: "Palhoça",
@@ -35,6 +37,8 @@ export async function getSettings(db: DB, workspaceId: string) {
     clearApiKey: _clearApiKey,
     tavilyApiKey: _tavilyApiKey,
     clearTavilyApiKey: _clearTavilyApiKey,
+    openrouterApiKey: _openrouterApiKey,
+    clearOpenrouterApiKey: _clearOpenrouterApiKey,
     ...data
   } = row?.data || {};
   return {
@@ -42,6 +46,9 @@ export async function getSettings(db: DB, workspaceId: string) {
     ...data,
     aiConfigured: !!(row?.encryptedKey || process.env.GEMINI_API_KEY),
     searchConfigured: !!(row?.encryptedSearchKey || process.env.TAVILY_API_KEY),
+    openrouterConfigured: !!(
+      row?.encryptedOpenRouterKey || process.env.OPENROUTER_API_KEY
+    ),
   };
 }
 export async function getApiKey(db: DB, workspaceId: string) {
@@ -76,6 +83,9 @@ export async function updateSettings(
     tavilyApiKey,
     clearTavilyApiKey,
     searchConfigured: _searchConfigured,
+    openrouterApiKey,
+    clearOpenrouterApiKey,
+    openrouterConfigured: _openrouterConfigured,
     ...data
   } = input;
   const row = await db
@@ -99,7 +109,20 @@ export async function updateSettings(
       data.searchProvider ??
       row?.data.searchProvider ??
       defaults.searchProvider,
+    researchProvider:
+      data.researchProvider ??
+      row?.data.researchProvider ??
+      defaults.researchProvider,
+    openrouterModel:
+      data.openrouterModel ??
+      row?.data.openrouterModel ??
+      defaults.openrouterModel,
   };
+  const encryptedOpenRouterKey = clearOpenrouterApiKey
+    ? null
+    : openrouterApiKey?.trim()
+      ? encrypt(openrouterApiKey.trim(), config.secret)
+      : row?.encryptedOpenRouterKey;
   if (row)
     await db
       .update(settings)
@@ -107,6 +130,7 @@ export async function updateSettings(
         data: nextData,
         encryptedKey,
         encryptedSearchKey,
+        encryptedOpenRouterKey,
         updatedAt: new Date().toISOString(),
       })
       .where(eq(settings.workspaceId, workspaceId))
@@ -120,7 +144,19 @@ export async function updateSettings(
         data: nextData,
         encryptedKey,
         encryptedSearchKey,
+        encryptedOpenRouterKey,
       })
       .run();
   return await getSettings(db, workspaceId);
+}
+
+export async function getOpenRouterApiKey(db: DB, workspaceId: string) {
+  const row = await db
+    .select()
+    .from(settings)
+    .where(eq(settings.workspaceId, workspaceId))
+    .get();
+  return row?.encryptedOpenRouterKey
+    ? decrypt(row.encryptedOpenRouterKey, config.secret)
+    : process.env.OPENROUTER_API_KEY || "";
 }

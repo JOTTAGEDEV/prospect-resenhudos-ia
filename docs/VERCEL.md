@@ -2,6 +2,8 @@
 
 A interface e a API são publicadas no mesmo projeto. O banco persistente usa Turso/libSQL; o worker usa Vercel Queues.
 
+OpenRouter gratuito pode substituir o Gemini apenas na pesquisa. Configure a chave no painel do próprio SaaS; a migration `0003_openrouter_research_key` adiciona armazenamento criptografado independente e preserva as chaves existentes. `OPENROUTER_API_KEY` é um fallback opcional de ambiente. Não é preciso ativar faturamento para o roteador gratuito, e o código rejeita modelos pagos. A validação ao vivo depende da chave e da disponibilidade da conta do usuário.
+
 Variáveis protegidas necessárias: TURSO_DATABASE_URL, TURSO_AUTH_TOKEN, SESSION_SECRET (32+ caracteres) e ADMIN_PASSWORD (8+ caracteres). O usuário inicial é admin123. O build aplica as migrations e cria o administrador somente se ele não existir. A senha existente nunca é redefinida pelo deploy.
 
 As chaves Gemini e Tavily, o provedor de busca e os modelos são configurados dentro do sistema em Configurações. As chaves são criptografadas separadamente e nunca retornadas pela API. O build aplica também a migration da coluna de chave Tavily, preservando as configurações existentes.
