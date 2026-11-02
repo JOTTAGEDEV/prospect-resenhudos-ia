@@ -50,7 +50,7 @@ describe("Tavily HTTP", () => {
       search_depth: "basic",
       auto_parameters: false,
       max_results: 20,
-      include_raw_content: false,
+      include_raw_content: "markdown",
     });
     expect(result).toEqual([
       {
@@ -60,6 +60,87 @@ describe("Tavily HTTP", () => {
         content: "Dados públicos",
       },
     ]);
+  });
+  it("inclui endereço e contatos do conteúdo completo e mantém resumo com raw nulo ou ausente", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: [
+            {
+              title: "Empresa",
+              url: "https://empresa.example/",
+              content: "Resumo sem contatos",
+              raw_content:
+                "# Empresa\nRua Central, 123, Palhoça\n(48) 3222-3333\ncontato@empresa.example",
+            },
+            {
+              title: "Outra",
+              url: "https://outra.example/",
+              content: "Resumo disponível",
+              raw_content: null,
+            },
+            {
+              title: "Terceira",
+              url: "https://terceira.example/",
+              content: "Resumo antigo",
+            },
+          ],
+        }),
+      ),
+    );
+    const result = await searchTavily(
+      "test-key",
+      "teste",
+      20,
+      undefined,
+      fetcher,
+    );
+    expect(result[0].content).toContain("Resumo sem contatos");
+    expect(result[0].content).toContain("Rua Central, 123, Palhoça");
+    expect(result[0].content).toContain("(48) 3222-3333");
+    expect(result[0].content).toContain("contato@empresa.example");
+    expect(result[1].content).toBe("Resumo disponível");
+    expect(result[2].content).toBe("Resumo antigo");
+    expect(fetcher).toHaveBeenCalledTimes(1);
+  });
+  it("limita documentos a 16 mil caracteres preservando início e contatos no rodapé", async () => {
+    const raw =
+      "Empresa Aurora em Palhoça\n" +
+      "conteúdo intermediário ".repeat(3000) +
+      "\nRodapé: Rua Central, 123; (48) 3222-3333; contato@aurora.example";
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          results: [
+            {
+              title: "Empresa",
+              url: "https://empresa.example/",
+              content: "Resumo ".repeat(1000),
+              raw_content: raw,
+            },
+            {
+              title: "Outra",
+              url: "https://outra.example/",
+              content: "s".repeat(20_000),
+              raw_content: null,
+            },
+          ],
+        }),
+      ),
+    );
+    const result = await searchTavily(
+      "test-key",
+      "teste",
+      20,
+      undefined,
+      fetcher,
+    );
+    expect(result[0].content).toHaveLength(16_000);
+    expect(result[0].content).toContain("Empresa Aurora em Palhoça");
+    expect(result[0].content).toContain("Rodapé: Rua Central, 123");
+    expect(result[0].content).toContain("contato@aurora.example");
+    expect(result[0].content).toContain("trecho intermediário omitido");
+    expect(result[1].content).toHaveLength(16_000);
   });
   it.each([
     [401, 409],

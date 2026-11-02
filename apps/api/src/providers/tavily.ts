@@ -8,15 +8,35 @@ export type SearchDocument = {
   content: string;
 };
 export const TAVILY_MAX_BYTES = 2 * 1024 * 1024;
+const DOCUMENT_MAX_CHARS = 16_000;
 const resultsSchema = z.object({
   results: z.array(
     z.object({
       title: z.string(),
       url: z.string(),
       content: z.string(),
+      raw_content: z.string().nullable().optional(),
     }),
   ),
 });
+
+function documentContent(
+  result: z.infer<typeof resultsSchema>["results"][number],
+) {
+  if (!result.raw_content?.trim())
+    return result.content.slice(0, DOCUMENT_MAX_CHARS);
+  const snippet = result.content.slice(0, 4000);
+  const separator = snippet ? "\n\n" : "";
+  const available = DOCUMENT_MAX_CHARS - snippet.length - separator.length;
+  const raw = result.raw_content.trim();
+  if (raw.length <= available) return snippet + separator + raw;
+  // Business identity is often near the header; address and contacts near the
+  // footer. Keep both as literal source excerpts without fetching extra URLs.
+  const marker = "\n[... trecho intermediário omitido ...]\n";
+  const head = Math.floor((available - marker.length) / 2);
+  const tail = available - marker.length - head;
+  return snippet + separator + raw.slice(0, head) + marker + raw.slice(-tail);
+}
 
 function tavilyError(status: number) {
   if (status === 401 || status === 403)
@@ -103,7 +123,7 @@ export async function searchTavily(
         auto_parameters: false,
         max_results: Math.max(1, Math.min(20, Math.floor(maxResults))),
         include_answer: false,
-        include_raw_content: false,
+        include_raw_content: "markdown",
         include_images: false,
         include_usage: true,
         country: "brazil",
@@ -132,7 +152,7 @@ export async function searchTavily(
             id: seen.size,
             title: result.title.slice(0, 500),
             url: result.url,
-            content: result.content.slice(0, 16_000),
+            content: documentContent(result),
           },
         ];
       } catch {

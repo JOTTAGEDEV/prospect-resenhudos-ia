@@ -236,25 +236,33 @@ export function externalDiscovery(
   const output = externalDiscoverySchema.parse(parseResearchJson(text));
   const seen = new Set<string>(),
     used = new Set<number>();
+  const rejected = { identity: 0, locality: 0, distance: 0 };
   const leads = output.businesses
     .flatMap((raw) => {
       const checked = checkedCompany(raw, documents);
-      if (!checked) return [];
+      if (!checked) {
+        rejected.identity++;
+        return [];
+      }
       const { name, company, latitude, longitude } = checked;
       const located = latitude !== null && longitude !== null;
       if (
         located &&
         distanceKm(input.latitude, input.longitude, latitude, longitude) >
           input.radiusKm
-      )
+      ) {
+        rejected.distance++;
         return [];
+      }
       if (
         !located &&
         (!company.address ||
           !company.city ||
           normalized(company.city) !== normalized(input.city))
-      )
+      ) {
+        rejected.locality++;
         return [];
+      }
       const identity = normalized(
         name + "|" + (company.address || company.city),
       );
@@ -285,7 +293,7 @@ export function externalDiscovery(
   if (output.businesses.length && !leads.length)
     throw new AppError(
       502,
-      "A busca não trouxe empresas com identidade e localização comprovadas na região. Tente outro segmento ou região.",
+      `A busca não trouxe empresas com identidade e localização comprovadas na região. Avaliadas: ${output.businesses.length}; sem identidade ou trecho verificável: ${rejected.identity}; sem endereço/cidade verificáveis: ${rejected.locality}; fora do raio: ${rejected.distance}. Tente outro segmento ou região.`,
     );
   return {
     leads,

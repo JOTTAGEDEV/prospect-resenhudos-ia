@@ -151,6 +151,46 @@ describe("evidências externas sem grounding Google inventado", () => {
       }),
     ).toThrow("localização");
   });
+  it("informa apenas contagens das causas de rejeição, sem nomes nem contatos", () => {
+    const farContent = content.replace("-27.645, -48.669", "-23.55, -46.63");
+    const farDocument = { ...documents[0], id: 2, content: farContent };
+    const farBusiness = Object.fromEntries(
+      Object.entries(business(farContent)).map(([key, value]) => [
+        key,
+        typeof value === "object" ? { ...value, sourceId: 2 } : value,
+      ]),
+    );
+    farBusiness.latitude = cite(-23.55, farContent, 2);
+    farBusiness.longitude = cite(-46.63, farContent, 2);
+    const invalidIdentity = {
+      ...business(),
+      name: cite("Oficina Aurora", "Trecho inventado sobre Oficina Aurora"),
+    };
+    const invalidLocality = {
+      ...business(),
+      address: null,
+      latitude: null,
+      longitude: null,
+    };
+    try {
+      externalDiscovery(
+        JSON.stringify({
+          businesses: [invalidIdentity, invalidLocality, farBusiness],
+        }),
+        [...documents, farDocument],
+        input,
+      );
+      expect.fail("A busca deveria rejeitar os três candidatos");
+    } catch (error) {
+      const message = (error as Error).message;
+      expect(message).toContain("Avaliadas: 3");
+      expect(message).toContain("sem identidade ou trecho verificável: 1");
+      expect(message).toContain("sem endereço/cidade verificáveis: 1");
+      expect(message).toContain("fora do raio: 1");
+      expect(message).not.toContain("Oficina Aurora");
+      expect(message).not.toContain("contato@aurora.example");
+    }
+  });
   it("not_found exige identidade/endereço/cidade verificados e rede social não vira site próprio", () => {
     const noSiteContent = content.replace(
       " Site oficial https://aurora.example/.",
@@ -266,7 +306,12 @@ it("Tavily pesquisa e Gemini 3.8 organiza sem ferramentas Google, usando teto di
   expect(request.config.maxOutputTokens).toBe(32768);
   expect(JSON.parse(request.contents).documents).toEqual(documents);
   expect(search.mock.calls[0][0]).toBe("tavily-test-key");
+  expect(search.mock.calls[0][1]).toBe(
+    `${input.category} "Palhoça" SC endereço telefone site contato`,
+  );
+  expect(search.mock.calls[0][1]).not.toContain("Google Maps");
   expect(search.mock.calls[1][1]).toContain("site oficial");
+  expect(search.mock.calls[1][1]).not.toContain("Google Maps");
   expect(
     (await database.db.select().from(usage).all()).find(
       (row) => row.tokens === 1234,

@@ -151,8 +151,8 @@ export class GeminiProvider implements AIProvider {
         ? await this.searchWeb(
             await getSearchApiKey(this.db, workspaceId),
             researchMode === "discovery"
-              ? `${searchInput.category} em ${searchInput.city} ${searchInput.state} Brasil região até ${searchInput.radiusKm} km empresas endereço telefone contato site oficial Google Maps`
-              : `"${evidenceInput.name}" ${evidenceInput.city || ""} ${evidenceInput.state || ""} site oficial contato telefone email Google Maps ${evidenceInput.address?.slice(0, 80) || ""}`,
+              ? `${searchInput.category} "${searchInput.city}" ${searchInput.state} endereço telefone site contato`
+              : `"${evidenceInput.name}" ${evidenceInput.city || ""} ${evidenceInput.state || ""} site oficial contato telefone email ${evidenceInput.address?.slice(0, 80) || ""}`,
             20,
             signal,
           )

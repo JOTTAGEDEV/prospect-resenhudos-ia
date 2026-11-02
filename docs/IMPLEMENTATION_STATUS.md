@@ -27,7 +27,7 @@
 
 ## Verificações executadas
 
-- [x] TypeScript, ESLint, **113 testes Vitest** e builds web/API passaram. A integração Tavily é coberta por testes de transporte, validação de trechos reais, identidade, contatos e separação das ferramentas Google.
+- [x] TypeScript, ESLint, **116 testes Vitest** e builds web/API passaram. A integração Tavily é coberta por testes de transporte, validação de trechos reais, identidade, contatos e separação das ferramentas Google.
 - [x] `npm run test:e2e`: fluxo integrado Chromium passou, com banco e servidor exclusivos de teste.
 - [x] E2E: login → descoberta mockada → auditoria mockada → IA mockada → mensagem → aprovação → pipeline → reload → cadastro manual → configurações.
 - [x] E2E: salvar chave Tavily fictícia, recarregar sem expor o segredo, preservar com campo vazio e remover explicitamente.
@@ -41,7 +41,7 @@
 
 ## Dependências externas não confirmadas
 
-- [ ] Pesquisa Tavily + Gemini ao vivo completa: chave Tavily cadastrada e fontes retornadas. A validação completa depende de uma resposta Gemini bem-sucedida; o 3.8 retornou HTTP 503 e o 3.1 recusou a primeira estrutura com HTTP 400. A pesquisa Tavily passou a solicitar JSON por instrução, com o contrato e as citações validados no backend, para evitar limitações de esquemas complexos do provedor.
+- [ ] Pesquisa Tavily + Gemini ao vivo completa: chave Tavily cadastrada e fontes retornadas. O 3.1 respondeu, mas a primeira resposta não comprovou identidade/localidade suficientes; o 3.8 retornou HTTP 503. A pesquisa solicita conteúdo completo das páginas e JSON por instrução, com contrato e citações validados no backend. Falhas de evidência informam contagens de rejeição sem expor dados pessoais.
 - [x] Disponibilidade Google investigada: a chave recusou a geração do Gemini 2.5 com 404; as ferramentas Search/Maps do 3.8 não estão incluídas na camada gratuita. Não atribuímos essa recusa ao esgotamento das 20 chamadas diárias.
 - [ ] Pesquisa Overpass ao vivo concluída: tentativas anteriores tiveram timeout; esse adaptador não é mais a fonte padrão.
 - [ ] WhatsApp externo: link e bloqueios testados; nenhum contato real aberto ou enviado.
